@@ -48,6 +48,7 @@ class Map:
     
 
     #function to validate if rows,cols are inside the grid
+
     def inbound_cell(self,cell):
         """Checks if the given row and column indices are within the grid map boundaries.
 
@@ -65,11 +66,39 @@ class Map:
         #cell is a tuple with 2 values (rows,cols) so I break it into seperate variables
         row,col = cell
 
+        print("row, col =", row, col, "| self.rows, self.cols =", self.rows, self.cols)
         #validate whether rows and cols are inside grid
         return 0 <= row < self.rows and 0 <= col < self.cols
 
 
-map = Map(3,3)
-print(map.inbound_cell((-1, -1)))
+    def is_free_cell(self,cell):
+
+        """Uses in_bound_cell method to validate if grid is inside bounds and returns False if it isn't.
+           If cell is inside the grid it validates if this cell does not have an obstacle and the robot can freely move inside the cell.
+           It acts as a safe guard so the robot won't collide with obstacles.
+
+           Args: cell (tuple): (row, col) indices of the cell to check
+
+           Returns:
+                       bool: True if the grid is inside bounds and the robot can move to this grid, 
+                           False otherwise.
+           
+        """
+        #use in_bounds method to check if this cell is inside the grid
+        if not self.inbound_cell(cell):
+            return False
+            
+
+        #unpack the tuple into row and col
+        row,col = cell
+
+        read_cell = self.grid[row][col] #read cell's values
+
+        #return true if cell's value is 0, this means it's free
+        return read_cell == 0
+
+        
+
+
 
 
