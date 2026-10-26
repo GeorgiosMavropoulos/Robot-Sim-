@@ -1,5 +1,5 @@
 
-import math
+
 """
 Kinematic Model in a 2D space
 
@@ -10,6 +10,7 @@ based on current linear (v) and angular (omega) speed.
 It contains strict error handling mechanisms to avoid non-finite values (NaN/Inf) and negative dt ensuinrg stability during the simulation.
 
 """
+import math
 #utility function
 def angle_wrap(a):
     """Wraps an angular value to the interval [-pi, pi].
@@ -39,7 +40,7 @@ class Robot:
     Attributes:
         x (float): The horizontal position of the robot in meters.
         y (float): The vertical position of the robot in meters.
-        robot_size (float): The physical bounding radius or size of the robot.
+        
         theta (float): The orientation heading of the robot in radians, 
             automatically wrapped to [-pi, pi].
     """
@@ -54,27 +55,34 @@ class Robot:
         """
         self.x =x #horizontal robot's position
         self.y = y #vertical robot's position        
+        
+        #raise an error if x,y and theta are not valid values
+        if  not (math.isfinite( self.x) and math.isfinite( self.y) and math.isfinite(self.theta)):
+                    raise TypeError('Initial pose coordinates (x, y, theta) must be finite numbers.')
+
         #wrap the angle
         self.theta  = angle_wrap(theta)
 
-        #raise an error if x,y and theta are not valid values
-        if  not (math.isfinite( self.x) and math.isfinite( self.y) and math.isfinite(self.theta)):
-                    raise ValueError('Initial pose coordinates (x, y, theta) must be finite numbers.')
-
 
     def step(self, v, omega, dt):
-        """
-        Updates the robot's state over a time interval dt.
-        
-        :param v: Linear velocity (meters/second)
-        :param omega: Angular velocity (radians/second)
-        :param dt: Time step (seconds)
-        Position is being updated with the old self.theta and the robot turns
+        """Advance the robot's pose by one time step (unicycle model).
+
+        Uses forward Euler integration: the position is updated first using
+        the current heading, then the heading is rotated by omega * dt and
+        wrapped to [-pi, pi).
+
+        Args:
+            v (float): Forward velocity in m/s.
+            omega (float): Angular velocity in rad/s (positive = counter-clockwise).
+            dt (float): Time step in seconds. Must be > 0.
+
+        Raises:
+            ValueError: If v, omega or dt is not finite, or if dt <= 0.
         """
 
        
         if  not (math.isfinite(v) and math.isfinite(omega) and math.isfinite(dt)):
-            raise ValueError('Invalid step values')
+            raise ValueError(f'Invalid values for v,omega or dt{v},{omega},{dt} ')
 
          #raise an error if dt is <= 0
         if dt <=0:
