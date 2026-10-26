@@ -292,10 +292,45 @@ class Map:
         return is_free
 
 
-m = Map(5,5)
-print(m.is_free(0.5, 0.3))
 
 
+    def add_obstacle_rect(self,r0, c0, r1, c1):
+        """
+         This method fills a rectangle of cells with 1. (r0,c0) is one edge and (r1,c1) the opposite edge
+         Both angles belong to the rectangle. Both numbers must be integers and both edge inside the map.
+         The inbound_cell method is being used to validate the edge. 
+         Angle order: if user inputs r0 > r1 or c0 > c1, the method swap the values in order not to raise an error. 
+         The user now does not care about the order.
+
+         Args:
+             r0, c0, r1, c1 -> integers which represent the edge of the rectangle
+             r0,c0: row and column of an edge
+             r1,c1: row and column of the other edge
+
+        Returns:
+                    None
+                
+        
+        """
+
+        #validate if edges are inside the map boundaries and they are integers. inbound_cell verifies if they integers too!
+        if not self.inbound_cell((r0, c0)) or not self.inbound_cell((r1, c1)):
+            raise TypeError(f"Both edges ({r0}, {c0}) and ({r1}, {c1}) must be inside the map boundaries.")
+
+        #swap the values if users inputs r0 > r1 or c0> c1
+        if r0 >r1:
+            r0, r1 = r1, r0
+
+        if c0 > c1:
+            c0,c1 = c1,c0        
+
+        #if both angles are valid fill the rectangle with 1 using a nested for loop
+        for row in range(r0, r1 + 1):
+            for col in range(c0, c1 + 1):
+                self.grid[row][col] = 1
 
 
-    
+        
+
+        
+             
