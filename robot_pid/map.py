@@ -2,7 +2,7 @@
 Occupancy Grid Mapping Module for Robot Localization and Navigation.
 
 This module provides a structured spatial environment ('Map' class) designed to interface 
-discrete layout pathplanners (such as A* Search) with continuous real-world vehicle loops. 
+discrete layout path planners (such as A* Search) with continuous real-world vehicle loops. 
 It supports boundary guarding, collision checks, adjacent neighbor discovery, and 
 bidirectional transformations between continuous metric coordinates and discrete grid spaces.
 
@@ -17,7 +17,7 @@ Methods inside Map:
         [Static] Secure structural guard checking validation parameters during boot phases.
 
     _is_cell_valid_tuple(cell):
-        Defensive type guard asserting input cells are properly structured (row, col) integer pairs.
+        [Static] Defensive type guard asserting input cells are properly structured (row, col) integer pairs.
 
     inbound_cell(cell):
         Evaluates structural indices determining if target locations sit within boundaries.
@@ -33,19 +33,30 @@ Methods inside Map:
         
     world_to_cell(x, y):
         Converts robot odometer coordinate points (x, y) in meters to discrete grid slot rows and columns.
+
+    add_obstacle_rect(r0, c0, r1, c1):
+        Fills a rectangle array space of cells between two designated corner coordinates with obstacles.
+
+    build_default_map():
+        [Classmethod] Factory constructor generating a benchmark slalom path testing environment.
 """
 
 import math
 from typing import List
 class Map:
     def __init__(self,rows,cols,cell_size=0.2):
-        """Initializes the occupancy grid map.
+        """Create an empty map (all cells free).
 
         Args:
-            rows (int): Total number of rows in the grid.
-            cols (int): Total number of columns in the grid.
-            grid is being created inside the __init__ and is not required to be included in the signature
-            cell_size (float): Dimension of each cell side in meters. Defaults to 0.2.
+            rows (int): Number of rows, > 0.
+            cols (int): Number of columns, > 0.
+            cell_size (float): Cell side in metres, positive and finite.
+                Defaults to 0.2.
+
+        Raises:
+            TypeError: If rows or cols is not an integer.
+            ValueError: If rows or cols <= 0, or cell_size is not a
+                positive finite number.
         """
 
         #helper method to validate that input rows, cols are integers, grid dimensions are strictly positive numbers and cell size is a finite number
@@ -85,8 +96,8 @@ class Map:
 
 
     #helper method to raise a type error if input cell is not a valid tuple
-   
-    def _is_cell_valid_tuple(self,cell):
+    @staticmethod
+    def _is_cell_valid_tuple(cell):
           """Raise an error if cell is not a valid tuple with 2 values.Raise also an error if cell is not integer"""
           if not isinstance(cell, (tuple, list)) or len(cell) != 2:
                 raise TypeError(f"Cell must be a tuple list with 2 values and both values must be integers. Your input is: {type(cell)}")
@@ -127,18 +138,20 @@ class Map:
 
     def is_free_cell(self,cell)->bool:
 
-        """
-           Uses inbound_cell method to validate if grid is inside bounds and returns False if it isn't.
-           If cell is inside the grid it validates if this cell does not have an obstacle and the robot can freely move inside the cell.
-           It acts as a safe guard so the robot won't collide with obstacles.
+        """Tell whether a cell is inside the map and free of obstacles.
 
-           Args: cell (tuple): (row, col) indices of the cell to check
+            Args:
+                cell (tuple): (row, col) indices.
 
-           Returns:
-                       bool: True if the grid is inside bounds and the robot can move to this grid, 
-                           False otherwise.
-           
-        """
+            Returns:
+                bool: True if the cell is inside the grid and holds no obstacle.
+                A cell outside the grid is not free, so False is returned
+                instead of raising an error (the planner asks about neighbours
+                at the map border).
+
+            Raises:
+                TypeError: If cell is not a pair of integers.
+            """
         #use in_bounds method to check if this cell is inside the grid
         if not self.inbound_cell(cell):
             return False
@@ -153,19 +166,21 @@ class Map:
         return read_cell == 0
 
 
-    def neighbors(self,cell) -> List:
-        """
-        This functions loops through grid's directions and creates a neighbor cell. is_free_cell method validates whether a cell is free or not.
-        If it's free it appends the cell into neighbors list.
-        The method also raises an error if cell is not a valid tuple
+    def neighbors(self,cell) -> List[tuple]:
+        """Return the free 4-connected neighbours of a cell.
 
-        Args: 
-          cell tuple (row, col) indices of the cell to check
-          
-           
+        Neighbours are checked in the order right, left, down, up
+        (row +1 is down, row -1 is up).
+
+        Args:
+            cell (tuple): (row, col) indices.
+
         Returns:
-            A list of tuples (row, col)
-        
+            list[tuple]: (row, col) of every free neighbour; cells outside
+            the map or holding an obstacle are left out.
+
+        Raises:
+            TypeError: If cell is not a pair of integers.
         """
 
         #raise a type error if cell is not a tuple with 2 values
@@ -203,7 +218,7 @@ class Map:
         The A* planner works with grid indices, but the robot's physical layout operates
         on continuous meters. This method extracts the geometric center point of the cell.
 
-        Additionally, this method returns an error message if cell is not a valid tuple 
+        Additionally, this method raises a TypeError if cell is not a valid tuple 
 
         Args:
             cell (tuple): (row, col) matrix indices.
@@ -227,7 +242,13 @@ class Map:
 
     @staticmethod
     def is_x_y_valid(x,y):
-            """Helper function to validate whether x,y are valid meter numbers and infite. If not raises an error"""
+            """Check that x and y are finite numbers.
+
+        Raises:
+            TypeError: If x or y is not an int or float.
+            ValueError: If x or y is NaN or infinite.
+         """
+            
             if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
                 raise TypeError("X and Y values must be numbers.")
             
@@ -238,15 +259,22 @@ class Map:
 
     #function to return the cell with a point in meters
     def world_to_cell(self,x, y)-> tuple:
-        """This method returns the cell containg a mark to meters. In fact, it converts the meters (x,y) back to cell coordinates (row,col)
-           Additionally, it raises a type rror if x,y are not intgers and if x,y are not finite numbers.
-           Finaly this method calculates row and col coordinates and uses math.floor() to round to closest small integer.
-        Args:
-           x col's center
-           y row's center
+        """Convert a position in metres to the cell that contains it.
 
-        Returns: 
-             cell tuple (col, row)
+        Uses math.floor, so a point just left of or above the map lands
+        in a cell with a negative index (outside the grid) instead of
+        being rounded into cell 0.
+
+        Args:
+            x (float): Horizontal position in metres (-> column).
+            y (float): Vertical position in metres (-> row).
+
+        Returns:
+            tuple: (row, col). May lie outside the grid.
+
+        Raises:
+            TypeError: If x or y is not a number.
+            ValueError: If x or y is not finite.
         """
 
         #return an error message if x,y are not  integers and not finite numbers
@@ -259,7 +287,7 @@ class Map:
         #find col's coordinates
         col = math.floor(x / self.cell_size) ##round the float number to make it an integer
 
-        #create a tuple containing col, row
+        #create a tuple containing row,col
         cell = row,col
         return cell
 
@@ -267,23 +295,21 @@ class Map:
 
     
     def is_free(self,x,y)-> bool:
-        """
-        This function will be used from the simulator to count collisions. It answers whether the robot can pass the current block.
-        This method uses world_to_cell to convert x,y to coordinates and the method is_free_cell for the specific cell and returns the answer
-        
-        Args: 
-                x (col)
-                y (row)
+        """Collision check for a point given in metres.
+
+        Args:
+            x (float): Horizontal position in metres.
+            y (float): Vertical position in metres.
 
         Returns:
-                True if cell is free
-                False if not
-        
-        """
-        #return an error message if x,y are not  integers and not finite numbers
-        self.is_x_y_valid(x,y)
+            bool: True if the point lies inside the map on a free cell.
+            Points outside the map return False.
 
-        #convert x,y to coordinates
+        Raises:
+            TypeError, ValueError: As in world_to_cell.
+        """
+
+        #convert x,y to coordinates and also validates if x,y are valid numbers
         cell = self.world_to_cell(x,y)
 
         #call is_free_cell method to validate if this cell is free or not
@@ -295,27 +321,24 @@ class Map:
 
 
     def add_obstacle_rect(self,r0, c0, r1, c1):
-        """
-         This method fills a rectangle of cells with 1. (r0,c0) is one edge and (r1,c1) the opposite edge
-         Both angles belong to the rectangle. Both numbers must be integers and both edge inside the map.
-         The inbound_cell method is being used to validate the edge. 
-         Angle order: if user inputs r0 > r1 or c0 > c1, the method swap the values in order not to raise an error. 
-         The user now does not care about the order.
+        """Fill a rectangle of cells with obstacles.
 
-         Args:
-             r0, c0, r1, c1 -> integers which represent the edge of the rectangle
-             r0,c0: row and column of an edge
-             r1,c1: row and column of the other edge
+        (r0, c0) and (r1, c1) are opposite corners and both belong to the
+        rectangle. The corners may be given in any order; they are swapped
+        if needed.
 
-        Returns:
-                    None
-                
-        
+        Args:
+            r0, c0 (int): Row and column of one corner.
+            r1, c1 (int): Row and column of the opposite corner.
+
+        Raises:
+            TypeError: If a corner is not a pair of integers.
+            ValueError: If a corner lies outside the map.
         """
 
         #validate if edges are inside the map boundaries and they are integers. inbound_cell verifies if they integers too!
         if not self.inbound_cell((r0, c0)) or not self.inbound_cell((r1, c1)):
-            raise TypeError(f"Both edges ({r0}, {c0}) and ({r1}, {c1}) must be inside the map boundaries.")
+            raise ValueError(f"Both edges ({r0}, {c0}) and ({r1}, {c1}) must be inside the map boundaries.")
 
         #swap the values if users inputs r0 > r1 or c0> c1
         if r0 >r1:
@@ -330,7 +353,43 @@ class Map:
                 self.grid[row][col] = 1
 
 
+
+    @classmethod
+    def build_default_map(cls):
+       """Creates a benchmark occupancy grid map with a stable layout of 3 obstacles.
+        
+        The obstacles are placed as interlocking walls to force any path-planning 
+        algorithm (like A*) to compute a trajectory with distinct left and right turns. 
+        This ensures all experiments compare tracking and controller gains with fairness.
+
+        Args:
+            None
+
+        Returns:
+            Map: An initialized Map instance with predefined static wall obstacles.
+        """
+       #declare a default map 20 * 20 with cell_size 0.2
+       default_map = cls(rows=20, cols=20, cell_size=0.2)
+
+       #build 3 wall-obstacles using add_obstacle_rect method
+      
+        #obstacle 1: Wall starting from the left edge and closes to 70% of the width
+       default_map.add_obstacle_rect(r0=5, c0=0, r1=5, c1=13)
+
+        #obstacle 2: A wall which starts from the right edge and closes the 70% of the width
+       default_map.add_obstacle_rect(r0=10, c0=6, r1=10, c1=19)
+
+       #obstacle 3: another wall from the left side
+       default_map.add_obstacle_rect(r0=15, c0=0, r1=15, c1=13)
+
+       return default_map
+
         
 
         
              
+m = Map.build_default_map()
+for row in m.grid:
+    print("".join("#" if v else "." for v in row))
+print(sum(sum(row) for row in m.grid))                      # 42 (3 τοίχοι × 14 κελιά)
+print(m.is_free_cell((0, 0)), m.is_free_cell((19, 19))) 
