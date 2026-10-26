@@ -1,3 +1,40 @@
+"""
+Occupancy Grid Mapping Module for Robot Localization and Navigation.
+
+This module provides a structured spatial environment ('Map' class) designed to interface 
+discrete layout pathplanners (such as A* Search) with continuous real-world vehicle loops. 
+It supports boundary guarding, collision checks, adjacent neighbor discovery, and 
+bidirectional transformations between continuous metric coordinates and discrete grid spaces.
+
+Classes:
+    Map: Manages a 2D matrix array grid environment scaling indexes to real-world meters.
+
+Methods inside Map:
+    __init__(rows, cols, cell_size):
+        Constructs the internal grid matrix array and initializes sizing dimensions.
+
+    _validate_initialization_values(rows, cols, cell_size):
+        [Static] Secure structural guard checking validation parameters during boot phases.
+
+    _is_cell_valid_tuple(cell):
+        Defensive type guard asserting input cells are properly structured (row, col) integer pairs.
+
+    inbound_cell(cell):
+        Evaluates structural indices determining if target locations sit within boundaries.
+
+    is_free_cell(cell):
+        Verifies if indices point to non-obstructed, navigatable positions.
+
+    neighbors(cell):
+        Finds adjacent traversable horizontal and vertical path options around an origin cell.
+
+    cell_to_world(cell):
+        Converts grid cell indices (row, col) to real-world center-point positions (x, y) in meters.
+        
+    world_to_cell(x, y):
+        Converts robot odometer coordinate points (x, y) in meters to discrete grid slot rows and columns.
+"""
+
 import math
 from typing import List
 class Map:
@@ -50,9 +87,15 @@ class Map:
     #helper method to raise a type error if input cell is not a valid tuple
    
     def _is_cell_valid_tuple(self,cell):
-          """Raise an error if cell is not a valid tuple with 2 values"""
+          """Raise an error if cell is not a valid tuple with 2 values.Raise also an error if cell is not integer"""
           if not isinstance(cell, (tuple, list)) or len(cell) != 2:
-                raise TypeError(f"Cell must be a tuple list with 2 values. Your input is: {type(cell)}")
+                raise TypeError(f"Cell must be a tuple list with 2 values and both values must be integers. Your input is: {type(cell)}")
+          #unpack the list since it's a tuple with 2 values
+          row, col = cell
+
+          #raise an error if both values inside the cell are not integers
+          if not isinstance(row, int) or not isinstance(col, int):
+            raise TypeError(f"Both values inside the cell must be integers. Received: row={type(row)}, col={type(col)}")
           
 
     
@@ -82,7 +125,7 @@ class Map:
         return 0 <= row < self.rows and 0 <= col < self.cols
 
 
-    def is_free_cell(self,cell)->int:
+    def is_free_cell(self,cell)->bool:
 
         """
            Uses inbound_cell method to validate if grid is inside bounds and returns False if it isn't.
@@ -153,7 +196,7 @@ class Map:
 
         
     #convert cell's position into metres
-    def cell_to_world(self,cell):
+    def cell_to_world(self,cell)->tuple:
       """
          Converts grid cell coordinates (row, col) into real-world metric coordinates (x, y).
 
@@ -167,13 +210,9 @@ class Map:
 
         Returns:
             tuple: (x, y) continuous positions in meters.
-
-       Returns:
-            
       
        """
-
-      
+     
       #raise a type error if cell is not a tuple with 2 values
       self._is_cell_valid_tuple(cell)
       #unpack the cell to row and col
@@ -186,5 +225,36 @@ class Map:
       return (x_center,y_center)
 
 
-m = Map(5, 5)
-print(m.cell_to_world((1, 2)))
+
+    #function to return the cell with a point in meters
+    def world_to_cell(self,x, y)-> List[tuple]:
+        """This method returns the cell containg a mark to meters. In fact, it converts the meters (x,y) back to cell coordinates (row,col)
+           Additionally, it raises a type rror if x,y are not intgers and if x,y are not finite numbers.
+           Finaly this method calculates row and col coordinates and uses math.floor() to round to closest small integer.
+        Args:
+           x (row's center)
+           y(col's center)
+
+        Returns: 
+             cell tuple (row,col)
+        """
+
+        #return an error message if x,y are not  integers
+        if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+            raise TypeError("X and Y values must be integers.")
+        
+        #return an error message if coordinates are not fininte numbers
+        if not (math.isfinite(x) and math.isfinite(y)):
+            raise ValueError("Coordinates must be finite numbers!")
+        
+        #find row's coordinates
+        row = math.floor(y / self.cell_size) #round the float number to make it an integer
+
+        #find col's coordinates
+        col = math.floor(x / self.cell_size) ##round the float number to make it an integer
+
+        #create a tuple containing col, row
+        cell = row,col
+        return cell
+
+
