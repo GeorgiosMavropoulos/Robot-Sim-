@@ -68,5 +68,58 @@ class AStarPlanner:
         ##apply the manhattan algorithm if all goes well  
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
+    @staticmethod
+    def reconstruct_path(came_from,goal):
+       """
+            Reconstruct the path from start to goal.
+
+            Args:
+                came_from (dict): Maps each cell to its predecessor.
+                goal (tuple): Target cell.
+
+            Returns:
+                list: Cells ordered from start to goal.
+        """
 
 
+       #validate came_from
+       if not isinstance(came_from, dict):
+        raise TypeError("came_from must be a dictionary")
+
+        #validate goal structure
+       if not isinstance(goal, tuple) or len(goal) != 2:
+        raise ValueError("goal must be a tuple of two integers")
+
+       #validate goal coordinates
+       if any(type(coord) is not int for coord in goal):
+        raise ValueError("goal coordinates must be integers")
+
+       #create an empty list to append the coordinates in order to designate the path
+       path = [] 
+       current = goal
+
+       #loop through came_from list and append current into the path
+       while current in came_from:
+           path.append(current)
+           current = came_from[current]
+
+       path.append(current)  # Add the start cell
+       path.reverse() #reverse the list since it starts from the goal cell to designate the path
+
+       return path
+
+
+grid_item = Map(5, 5)
+planner = AStarPlanner(grid_item)
+
+came_from = {
+    (1, 2): (1, 1),
+    (1, 3): (1, 2),
+    (2, 3): (1, 3),
+    (3, 3): (2, 3)
+}
+
+goal = (1, 2)
+
+path = planner.reconstruct_path(came_from, goal)
+print(path)
