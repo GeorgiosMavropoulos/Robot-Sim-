@@ -5,6 +5,7 @@
 """
 #import map class
 from map import Map
+import math
 class AStarPlanner:
 
     """Plans shortest paths on a 4-connected Map using A*.
@@ -43,6 +44,28 @@ class AStarPlanner:
         Returns:
             int: |a_row - b_row| + |a_col - b_col|.
         """
+
+    ##Error handling#####
+
+    #validate that a and b are tuples or lists of length 2
+        for point, name in [(a, "a"), (b, "b")]:
+         if not isinstance(point, (tuple, list)) or len(point) != 2:
+            raise ValueError(
+                f"{name} must contain exactly two coordinates (row, col)"
+            )
+
+        #validate that both coordinates are numeric and finite
+        for coordinate in point:
+            if (
+                isinstance(coordinate, bool)
+                or not isinstance(coordinate, (int, float))
+                or not math.isfinite(coordinate)
+            ):
+                raise ValueError(
+                    f"Coordinates in {name} must be finite numbers"
+                )
+
+        ##apply the manhattan algorithm if all goes well  
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
 
