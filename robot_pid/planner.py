@@ -1,7 +1,47 @@
-"""
-   Path planner class implements the A*search algorithm which tracks the shorter path and allows the robot to traverse the shortest route to reach the goal.
-   The Manhattan heuristic algorithm to compute how many blocks current robot's position be at distance from the goal position.
+"""A* path planner used by the robot to find a route on the occupancy grid.
 
+Design rationale
+----------------
+The planner works on the discrete grid of ``Map`` and returns cells
+(row, col). The conversion to metres is a separate step, so the search
+itself can be tested with exact integer comparisons, while the simulator
+and the PID controllers only ever see (x, y) waypoints in metres.
+
+* Moves are 4-connected (right, left, down, up) and every step costs 1.
+* The heuristic is the Manhattan distance, which never overestimates the
+  real cost on this grid (admissible) and is consistent, so the path
+  found is a shortest one.
+* The open set is a ``heapq`` priority queue ordered by f = g + h.
+  ``heapq`` cannot lower the priority of an entry, so a cell may be pushed
+  more than once; outdated entries are skipped when they are popped.
+* Neighbours come from ``Map.neighbors`` in a fixed order, so the same
+  map, start and goal always give the same path.
+
+Public API
+----------
+AStarPlanner(grid_map)
+    Create a planner for a ``Map``. Raises TypeError if grid_map is not
+    a ``Map``.
+AStarPlanner.plan(start, goal) -> list[tuple] or None
+    Shortest path as (row, col) cells, start and goal included. Returns
+    None if the goal cannot be reached. Raises ValueError if start or
+    goal is outside the map or on an obstacle.
+AStarPlanner.get_waypoints(start, goal) -> list[tuple] or None
+    Same search, but the path is returned as (x, y) positions in metres
+    (cell centres). This is what the simulator calls.
+
+Helpers
+-------
+AStarPlanner.heuristic(a, b) -> int
+    Manhattan distance between two cells (static method).
+AStarPlanner.reconstruct_path(came_from, goal) -> list[tuple]
+    Rebuilds the path by following came_from back from the goal and
+    reversing it (static method).
+
+Coordinate convention
+---------------------
+Cells are (row, col). Positions in metres are (x, y), where x corresponds
+to the column and y to the row.
 """
 #import map class
 from map import Map
@@ -83,7 +123,7 @@ class AStarPlanner:
         """
        #validate came_from
        if not isinstance(came_from, dict):
-        raise TypeError("came_from must be a dictionary")
+        raise ValueError("came_from must be a dictionary")
 
         #validate goal structure
        if not isinstance(goal, tuple) or len(goal) != 2:
@@ -111,84 +151,144 @@ class AStarPlanner:
     ##plan method
     def plan(self,start,goal):
        """
-         This function 
-       
-       """
+       Find the shortest 4-connected path between two cells using A*.
 
-       #validate start and goal
+        Searches the occupancy grid with a priority queue ordered by
+        f = g + h, where g is the number of steps from start (each step
+        costs 1) and h is the Manhattan heuristic to the goal. Outdated
+        queue entries are skipped. Neighbours are explored in the fixed
+        order given by Map.neighbors, so the same inputs always produce
+        the same path.
+
+        Args:
+            start (tuple): (row, col) of the starting cell. Must be a
+                tuple of ints, inside the map and free.
+            goal (tuple): (row, col) of the target cell. Same rules as start.
+
+        Returns:
+            list[tuple] or None: Cells (row, col) ordered from start to
+            goal, both included. If start == goal, a list with that single
+            cell. None if the goal cannot be reached from start.
+
+        Raises:
+            ValueError: If start or goal lies outside the map or on an
+                obstacle (invalid input, as opposed to "no path").
+            TypeError: If start or goal is not a pair of integers
+                (raised by Map.is_free_cell).
+        """
+
+       #validate that the start and goal cells are inside the map
+       # and are not occupied by obstacles.
        if not self.map_instance.is_free_cell(start):
         raise ValueError("Start cell must be inside the map and free.")
 
        if not self.map_instance.is_free_cell(goal):
         raise ValueError("Goal cell must be inside the map and free.")
 
-       #priority queue: (estimated total cost, cell)
+       #priority queue containing (estimated total cost, cell).
        open_list = []
 
-       #this list stores the predecessor of each cell
+       #this list stores the predecessor of each visited cell to reconstruct
+       # the final path.
        came_from = {}
 
-       #g_score is the cost from start
+       #g_score stores the lowest known cost from start to each cell.
        g_score = {start: 0}
 
-       #f_score is the estimated score g_score + heuristic
+       #f_score estimates the total cost: g_score + heuristic.
        f_score = {
             start: self.heuristic(start, goal)
         }
 
-       #heapq creates a heap with the smaller values from open_list, f_score
+       #add the starting cell to the priority queue
        heapq.heappush(open_list,(f_score[start], start))
 
-       #iterate through the list
+       #continue searching while there are cells left to explore.
        while open_list:
-          #get the smallest item from the open last. The '_' means that we ignore the neighbor.f value because we are only interested on the block
-          _, current = heapq.heappop(open_list) 
+          #remove the cell with the lowest estimated total cost
+          _current, current = heapq.heappop(open_list) 
 
-          #ignore outdated entries in the priority queue
-          if current in f_score and _ > f_score[current]:
+          #skip outdated entries whose cost is worse than the
+          # best estimate currently recorded for this cell.
+          if current in f_score and _current > f_score[current]:
             continue
 
-          #check if current is goal
+          #if the goal is reached, reconstruct and return the path.
           if current == goal:
              #call reconstruct_path method to map the shorter found path
              path = self.reconstruct_path(came_from,goal)
              return path
 
-          #explore the free neighbors of current
+          #explore all free neighbouring cells.
           for neighbor in self.map_instance.neighbors(current):
-             #for each neighbor blocks of current block add + 1 into the cost, because we are moving towards one block from current block. the new cost is the current total steps + 1
+             
+             #moving to an adjacent cell costs one step.
              temp_g = g_score[current] + 1
 
-             #update only if this path is better
+             #pdate the neighbour only if this route is better
+             # than any previously discovered route.
              if temp_g < g_score.get(neighbor, float("inf")):
-                #remember the predecessor
+                #record the cell from which this neighbour was reached.
                 came_from[neighbor] = current
+
+                #store the improved cost from start.
                 g_score[neighbor] = temp_g
 
+                #estimate the total cost through this neighbour.
                 f_score[neighbor] = (
                     temp_g + self.heuristic(neighbor, goal)
                 )
 
-                #ddd the neighbor to the heap
+                #add the neighbour to the priority queue
                 heapq.heappush(
                     open_list,
                     (f_score[neighbor], neighbor)
                 )
-       #no path found
+       #the goal cannot be reached from the start.
        return None
 
 
+    #function to convert rows,cols (returned path from plan) to x,y since the robot can only understand x,y
+    def get_waypoints(self,start,goal):
+
+       """
+        Find a path and convert its cells into world coordinates.
+
+        Calls plan method from this class to find the shortest path.
+
+        Calls cell_to_world method from Map class to convert row and col into x,y.
+        
+        Args:
+            start (tuple): Starting cell (row, col).
+            goal (tuple): Goal cell (row, col).
+
+        Returns:
+            list[tuple] or None: Waypoints as (x, y) coordinates,
+            or None if no path is found.
+
+        Raises:
+          ValueError: If start or goal lies outside the map or on an
+                        obstacle (invalid input, as opposed to "no path").
+                    TypeError: If start or goal is not a pair of integers
+                        (raised by Map.is_free_cell).
+                        TypeError: if path is not a tuple with 2 elements
+                
+    """
+
+       #call plan method to retrieve the path
+       path = self.plan(start,goal)
+
+       if path is None:
+        return None
+
+       waypoints = []
+       #iterate through path and convert each row and col into x,y
+       for p in path:       
+       ##call the method cell_to_world from Map class to convert the rows and cols into x,y
+        waypoints.append(self.map_instance.cell_to_world(p))
+           
+
+       return waypoints
 
 
 
-grid_map = Map.build_default_map()
-planner = AStarPlanner(grid_map)
-
-start = (0, 0)
-goal = (19, 19)
-
-print("Start free:", grid_map.is_free_cell(start))
-print("Goal free:", grid_map.is_free_cell(goal))
-print("Neighbors of start:", grid_map.neighbors(start))
-path = planner.plan(start, goal)
-print("Path:", path)
