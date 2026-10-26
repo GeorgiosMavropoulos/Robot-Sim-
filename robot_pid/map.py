@@ -388,8 +388,3 @@ class Map:
 
         
              
-m = Map.build_default_map()
-for row in m.grid:
-    print("".join("#" if v else "." for v in row))
-print(sum(sum(row) for row in m.grid))                      # 42 (3 τοίχοι × 14 κελιά)
-print(m.is_free_cell((0, 0)), m.is_free_cell((19, 19))) 
