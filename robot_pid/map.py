@@ -66,14 +66,15 @@ class Map:
         #cell is a tuple with 2 values (rows,cols) so I break it into seperate variables
         row,col = cell
 
-        print("row, col =", row, col, "| self.rows, self.cols =", self.rows, self.cols)
+        
         #validate whether rows and cols are inside grid
         return 0 <= row < self.rows and 0 <= col < self.cols
 
 
     def is_free_cell(self,cell):
 
-        """Uses in_bound_cell method to validate if grid is inside bounds and returns False if it isn't.
+        """
+           Uses inbound_cell method to validate if grid is inside bounds and returns False if it isn't.
            If cell is inside the grid it validates if this cell does not have an obstacle and the robot can freely move inside the cell.
            It acts as a safe guard so the robot won't collide with obstacles.
 
@@ -97,8 +98,59 @@ class Map:
         #return true if cell's value is 0, this means it's free
         return read_cell == 0
 
+
+    def neighbors(self,cell):
+        """
+        This functions loops through grid's directions and creates a neighbor cell. is_free_cell method validates whether a cell is free or not.
+        If it's free it appends the cell into neighbors list
+
+        Args: 
+          cell tuple (row, col) indices of the cell to check
+          
+           
+        Returns:
+            A list of tuples (row, col)
+        
+        """
+
+        #unpack cell to row and col
+        row,col = cell
+
+        #create a list to store the valid blocks the algorithm will find
+        neighbors = [] 
+
+        #the following list holds the direction's key. each pair represents a move. 
+        # (0, 1)->right (same row next column), 
+        # (0,-1)->left(same row, previous column),
+        ## (1, 0)->(next row, same column), (-1,0)->(previous row, same column)
+        directions = [(0, 1), (0, -1), (1, 0), (-1, 0)] 
+
+        #loop through the list and for each direction create the neighbor cell adding the change in the row and col
+        for direction in directions:
+            r,c = row + direction[0], col + direction[1]
+
+            #if method is free accepts the cell add it to the list (neighbors)
+            if self.is_free_cell((r, c)):
+                #append the coordinates to the list
+                neighbors.append((r, c)) 
+
+        return neighbors
+
         
 
 
 
 
+m = Map(5, 5)
+m.grid[0][1] = 1
+tests = [
+    ((0, 0), True),
+    ((0, 1), False),
+    ((2, 2), True),
+    ((3, 0), False),
+    ((-1, 0), False),
+    ((0, 3), False),
+]
+for cell, expected in tests:
+    result = m.neighbors(cell)
+    print(cell, result, "OK" if result == expected else "FAIL")
