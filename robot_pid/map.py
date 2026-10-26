@@ -225,27 +225,33 @@ class Map:
       return (x_center,y_center)
 
 
+    @staticmethod
+    def is_x_y_valid(x,y):
+            """Helper function to validate whether x,y are valid meter numbers and infite. If not raises an error"""
+            if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+                raise TypeError("X and Y values must be numbers.")
+            
+            #return an error message if coordinates are not fininte numbers
+            if not (math.isfinite(x) and math.isfinite(y)):
+                raise ValueError("Coordinates must be finite numbers!")
+
 
     #function to return the cell with a point in meters
-    def world_to_cell(self,x, y)-> List[tuple]:
+    def world_to_cell(self,x, y)-> tuple:
         """This method returns the cell containg a mark to meters. In fact, it converts the meters (x,y) back to cell coordinates (row,col)
            Additionally, it raises a type rror if x,y are not intgers and if x,y are not finite numbers.
            Finaly this method calculates row and col coordinates and uses math.floor() to round to closest small integer.
         Args:
-           x (row's center)
-           y(col's center)
+           x col's center
+           y row's center
 
         Returns: 
-             cell tuple (row,col)
+             cell tuple (col, row)
         """
 
-        #return an error message if x,y are not  integers
-        if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
-            raise TypeError("X and Y values must be integers.")
+        #return an error message if x,y are not  integers and not finite numbers
+        self.is_x_y_valid(x,y)
         
-        #return an error message if coordinates are not fininte numbers
-        if not (math.isfinite(x) and math.isfinite(y)):
-            raise ValueError("Coordinates must be finite numbers!")
         
         #find row's coordinates
         row = math.floor(y / self.cell_size) #round the float number to make it an integer
@@ -258,3 +264,38 @@ class Map:
         return cell
 
 
+
+    
+    def is_free(self,x,y)-> bool:
+        """
+        This function will be used from the simulator to count collisions. It answers whether the robot can pass the current block.
+        This method uses world_to_cell to convert x,y to coordinates and the method is_free_cell for the specific cell and returns the answer
+        
+        Args: 
+                x (col)
+                y (row)
+
+        Returns:
+                True if cell is free
+                False if not
+        
+        """
+        #return an error message if x,y are not  integers and not finite numbers
+        self.is_x_y_valid(x,y)
+
+        #convert x,y to coordinates
+        cell = self.world_to_cell(x,y)
+
+        #call is_free_cell method to validate if this cell is free or not
+        is_free = self.is_free_cell(cell)
+
+        return is_free
+
+
+m = Map(5,5)
+print(m.is_free(0.5, 0.3))
+
+
+
+
+    
