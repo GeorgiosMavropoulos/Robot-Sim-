@@ -1,4 +1,5 @@
 import math
+from typing import List
 class Map:
     def __init__(self,rows,cols,cell_size=0.2):
         """Initializes the occupancy grid map.
@@ -45,11 +46,20 @@ class Map:
        if not isinstance(cell_size, (int, float)) or cell_size <= 0 or not math.isfinite(cell_size):
             raise ValueError("Cell size must be a positive finite number.")
 
+
+    #helper method to raise a type error if input cell is not a valid tuple
+   
+    def _is_cell_valid_tuple(self,cell):
+          """Raise an error if cell is not a valid tuple with 2 values"""
+          if not isinstance(cell, (tuple, list)) or len(cell) != 2:
+                raise TypeError(f"Cell must be a tuple list with 2 values. Your input is: {type(cell)}")
+          
+
     
 
     #function to validate if rows,cols are inside the grid
 
-    def inbound_cell(self,cell):
+    def inbound_cell(self,cell)->bool:
         """Checks if the given row and column indices are within the grid map boundaries.
 
         This method acts as a safety guard during runtime (e.g., inside planning 
@@ -61,8 +71,9 @@ class Map:
         Returns:
             bool: True if the coordinates are within the valid grid bounds, 
                 False otherwise.
-        """
-
+        """ 
+        #raise a type error if cell is not a tuple with 2 values
+        self._is_cell_valid_tuple(cell)
         #cell is a tuple with 2 values (rows,cols) so I break it into seperate variables
         row,col = cell
 
@@ -71,7 +82,7 @@ class Map:
         return 0 <= row < self.rows and 0 <= col < self.cols
 
 
-    def is_free_cell(self,cell):
+    def is_free_cell(self,cell)->int:
 
         """
            Uses inbound_cell method to validate if grid is inside bounds and returns False if it isn't.
@@ -89,7 +100,7 @@ class Map:
         if not self.inbound_cell(cell):
             return False
             
-
+        
         #unpack the tuple into row and col
         row,col = cell
 
@@ -99,10 +110,11 @@ class Map:
         return read_cell == 0
 
 
-    def neighbors(self,cell):
+    def neighbors(self,cell) -> List:
         """
         This functions loops through grid's directions and creates a neighbor cell. is_free_cell method validates whether a cell is free or not.
-        If it's free it appends the cell into neighbors list
+        If it's free it appends the cell into neighbors list.
+        The method also raises an error if cell is not a valid tuple
 
         Args: 
           cell tuple (row, col) indices of the cell to check
@@ -112,6 +124,9 @@ class Map:
             A list of tuples (row, col)
         
         """
+
+        #raise a type error if cell is not a tuple with 2 values
+        self._is_cell_valid_tuple(cell)
 
         #unpack cell to row and col
         row,col = cell
@@ -137,20 +152,39 @@ class Map:
         return neighbors
 
         
+    #convert cell's position into metres
+    def cell_to_world(self,cell):
+      """
+         Converts grid cell coordinates (row, col) into real-world metric coordinates (x, y).
 
+        The A* planner works with grid indices, but the robot's physical layout operates
+        on continuous meters. This method extracts the geometric center point of the cell.
 
+        Additionally, this method returns an error message if cell is not a valid tuple 
+
+        Args:
+            cell (tuple): (row, col) matrix indices.
+
+        Returns:
+            tuple: (x, y) continuous positions in meters.
+
+       Returns:
+            
+      
+       """
+
+      
+      #raise a type error if cell is not a tuple with 2 values
+      self._is_cell_valid_tuple(cell)
+      #unpack the cell to row and col
+      row,col = cell
+      #finding row's center. +0.5 is being used to get the center and not the left edge
+      x_center = (col + 0.5) * self.cell_size
+      y_center = (row + 0.5) * self.cell_size
+
+      #return x,y
+      return (x_center,y_center)
 
 
 m = Map(5, 5)
-m.grid[0][1] = 1
-tests = [
-    ((0, 0), True),
-    ((0, 1), False),
-    ((2, 2), True),
-    ((3, 0), False),
-    ((-1, 0), False),
-    ((0, 3), False),
-]
-for cell, expected in tests:
-    result = m.neighbors(cell)
-    print(cell, result, "OK" if result == expected else "FAIL")
+print(m.cell_to_world((1, 2)))
