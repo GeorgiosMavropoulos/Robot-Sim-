@@ -55,7 +55,7 @@ class Robot:
         """
         self.x =x #horizontal robot's position
         self.y = y #vertical robot's position        
-        
+        self.theta = theta
         #raise an error if x,y and theta are not valid values
         if  not (math.isfinite( self.x) and math.isfinite( self.y) and math.isfinite(self.theta)):
                     raise TypeError('Initial pose coordinates (x, y, theta) must be finite numbers.')
