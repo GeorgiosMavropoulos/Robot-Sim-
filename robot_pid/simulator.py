@@ -41,6 +41,9 @@ Simulator._validate_init_args(grid_map, waypoints, heading_pid, speed_pid, dt=0.
 Simulator._validate_finite_number(name, value)
 Simulator._validate_positive_number(name, value)
 
+heading_error(theta,desired_angle)
+compute_angle_between_start_and_goal(start,goal)
+
 
 """
 
@@ -346,7 +349,7 @@ class Simulator:
     @staticmethod     
     def distance_between_two_waypoints(x,y):
          """
-            Calcuates the distance between two waypoints
+            Calculates the distance between two waypoints
 
             Args:
                  x: tuple containing the coordinates (x1, y1).
@@ -483,13 +486,6 @@ class Simulator:
 
 
 
-grid_map= Map(5,5)
-waypoints = ((0.1, 0.1), (0.3, 0.3), (0.7, 0.5))
-heading_pid = PID(0.5,0.2,0.1)
-speed_pid = PID (0.5,0.3,0.2)
-
-sim = Simulator(grid_map,waypoints,heading_pid,speed_pid)
-print(sim.heading_error(0.0, math.pi / 2))
 
 
 
