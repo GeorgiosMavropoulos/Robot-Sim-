@@ -1,9 +1,53 @@
-#MAP function is going build the map.
+"""
+Simulation of a robot following a waypoint path with two PID controllers.
+
+The ``Simulator`` receives a ``Map``, a list of waypoints in metres and two
+independent ``PID`` controllers: one turns the robot towards the next
+waypoint (heading), the other sets its forward speed.
+
+Design rationale
+----------------
+The simulator receives waypoints, not a planner. The path is computed once
+(A* in ``planner.py``) and handed to every run, so all gain sets are
+compared on exactly the same path, and the control loop can be tested on
+a hand-made path without any search.
+Heading and speed use separate PID objects. A PID keeps an integral and a
+previous error, so sharing one object between two signals would mix
+radians with metres.
+The constructor only validates and stores configuration. The robot and
+the recorded results are created at the start of each run, so repeated
+runs never leak state into each other.
+Nothing here starts pygame, so runs can be headless.
+
+Coordinate convention
+---------------------
+Positions are (x, y) in metres and angles are in radians, counter-clockwise
+from the +x axis, wrapped to [-pi, pi) with ``angle_wrap``.
+
+Public API
+----------
+Simulator(grid_map, waypoints, heading_pid, speed_pid, dt=0.1,
+          waypoint_threshold=0.15, goal_threshold=0.1, t_max=60.0,
+          start_theta=0.0)
+    Validate and store the configuration of one simulation.
+
+Internal helpers
+----------------
+Simulator._normalize_waypoints(waypoints)
+Simulator._validate_init_args(grid_map, waypoints, heading_pid, speed_pid, dt=0.1,
+          waypoint_threshold=0.15, goal_threshold=0.1, t_max=60.0,
+          start_theta=0.0)
+
+Simulator._validate_finite_number(name, value)
+Simulator._validate_positive_number(name, value)
+
+
+"""
+
+
 from .map import Map 
 from numbers import Real
 from collections.abc import Iterable
-#AStarplanner class which will be used to design the shortest path in the map
-from .planner import AStarPlanner 
 
 #import the utility function angle_wrap to normalise angle values since they may get increased while robot moves
 from .robot import Robot, angle_wrap 
@@ -14,97 +58,79 @@ import math
 import matplotlib.pyplot as plt
 
 class Simulator:
+    """
+    Configuration of one waypoint-following simulation.
+
+    Attributes:
+        grid_map (Map): Occupancy grid used for collision and waypoint checks.
+        waypoints (tuple[tuple[float, float]]): Path as (x, y) pairs in
+            metres, at least two.
+        heading_pid (PID): Controller that outputs the angular velocity.
+        speed_pid (PID): Controller that outputs the forward velocity.
+        dt (float): Time step in seconds.
+        waypoint_threshold (float): Distance in metres at which an
+            intermediate waypoint counts as reached.
+        goal_threshold (float): Distance in metres at which the final
+            waypoint counts as reached.
+        t_max (float): Maximum simulated time in seconds.
+        start_theta (float): Initial heading in radians, in [-pi, pi).
+    """
+
     def __init__(self, grid_map, waypoints, heading_pid, speed_pid,dt=0.1, waypoint_threshold=0.15, goal_threshold=0.1, t_max=60.0, start_theta=0.0):
         """
-        Initialise a robot simulation with a map, a waypoint path,
-        and separate PID controllers for heading and speed.
+        Validate and store the configuration of a simulation.
 
-        The constructor validates all input arguments before storing
-        them as instance attributes. It also converts the waypoint
-        sequence into an immutable tuple and normalises the initial
-        heading to the interval [-pi, pi).
+        All arguments are checked before anything is stored. The waypoints
+        are copied into an immutable tuple of float pairs and the starting
+        heading is wrapped to [-pi, pi).
 
         Args:
-            grid_map (Map):
-                The occupancy grid map used by the simulator. The map
-                must be a valid Map instance and is used to check
-                whether each waypoint lies in free space.
-
-            waypoints (Iterable[tuple[float, float]]):
-                An iterable containing the robot's target waypoints.
-                Each waypoint must contain exactly two finite real
-                numbers, (x, y), expressed in metres. The iterable
-                must contain at least two waypoints otherwisethe cross-track error, one of the metrics the assignment asks for, 
-                with one waypoint there is no segment, so there is nothing to measure against. 
-                
-
-            heading_pid (PID):
-                The PID controller responsible for correcting the
-                robot's heading error. This controller must be a PID
-                instance and must not be the same object as speed_pid.
-
-            speed_pid (PID):
-                The PID controller responsible for controlling the
-                robot's linear speed. This controller must be a PID
-                instance and must not be the same object as heading_pid.
-
-            dt (float, optional):
-                The simulation time step in seconds. Must be a finite
-                real number strictly greater than zero.
-                Defaults to 0.1 seconds.
-
-            waypoint_threshold (float, optional):
-                The distance tolerance, in metres, used to determine
-                whether an intermediate waypoint has been reached.
-                Must be a finite real number strictly greater than
-                zero. Defaults to 0.15 metres.
-
-            goal_threshold (float, optional):
-                The distance tolerance, in metres, used to determine
-                whether the final goal has been reached.
-                Must be a finite real number strictly greater than
-                zero. Defaults to 0.1 metres.
-
-            t_max (float, optional):
-                The maximum simulated duration in seconds. Must be
-                a finite real number strictly greater than zero.
-                Defaults to 60.0 seconds.
-
-            start_theta (float, optional):
-                The robot's initial orientation in radians. Must be a
-                finite real number. The value is normalised using
-                angle_wrap() so that the stored heading lies in
-                [-pi, pi). Defaults to 0.0 radians.
+            grid_map (Map): Occupancy grid. Every waypoint must lie on a
+                free cell of this map.
+            waypoints (Iterable): The path as (x, y) pairs in metres. At
+                least two are required, because the path is made of
+                segments between consecutive points and the cross-track
+                error is measured against those segments. Lists, tuples
+                and one-shot iterables such as generators are accepted.
+            heading_pid (PID): Controller for the heading error. Must not
+                be the same object as speed_pid.
+            speed_pid (PID): Controller for the forward speed. Must not be
+                the same object as heading_pid.
+            dt (float): Time step in seconds, finite and > 0.
+                Defaults to 0.1.
+            waypoint_threshold (float): Distance in metres at which an
+                intermediate waypoint is reached, finite and > 0. Keep it
+                larger than the distance travelled per step (v * dt).
+                Defaults to 0.15.
+            goal_threshold (float): Distance in metres at which the final
+                waypoint is reached, finite and > 0. Defaults to 0.1.
+            t_max (float): Maximum simulated time in seconds, finite and
+                > 0. Defaults to 60.0.
+            start_theta (float): Initial heading in radians, finite. It is
+                wrapped with angle_wrap(). Defaults to 0.0.
 
         Raises:
-            TypeError:
-                If grid_map or either PID controller has an invalid
-                type; if waypoints is not an acceptable iterable; if
-                a waypoint is not an iterable pair; or if a numeric
-                argument is not a real number or is a boolean.
-
-            ValueError:
-                If heading_pid and speed_pid refer to the same object,
-                if a numeric argument is non-finite or outside its
-                permitted range, if waypoints are empty, if a waypoint
-                does not contain exactly two coordinates or if a
-                waypoint lies outside the map or inside an obstacle.
+            TypeError: If grid_map or a PID has the wrong type, waypoints
+                is not an iterable of pairs, or a numeric argument is not a
+                real number (booleans are rejected).
+            ValueError: If both PIDs are the same object, a numeric
+                argument is not finite or not in its allowed range, fewer
+                than two waypoints are given, a waypoint does not have two
+                coordinates, or a waypoint is outside the map or on an
+                obstacle.
 
         Notes:
-            Separate PID instances are required because each controller
-            maintains its own internal state, including integral and
-            previous-error values. Sharing one instance would cause
-            the heading and speed control calculations to interfere
-            with each other.
+            Separate PID objects are required because each one stores its
+            own integral and previous error.
         """
 
+        #generalise waypoints
+        normalized_waypoints = self._normalize_waypoints(waypoints)
         #validate that the input values on the class's instance are valid
-        self._validate_init_args(grid_map,waypoints,heading_pid,speed_pid,dt,waypoint_threshold,goal_threshold,t_max,start_theta)
+        self._validate_init_args(grid_map,normalized_waypoints,heading_pid,speed_pid,dt,waypoint_threshold,goal_threshold,t_max,start_theta)
 
         self.grid_map = grid_map
-        self.waypoints = tuple(
-            (float(x), float(y)) for x, y in waypoints
-        )
+        self.waypoints = tuple((float(x), float(y))for x, y in normalized_waypoints)
         self.heading_pid = heading_pid
         self.speed_pid = speed_pid
         self.dt = float(dt)
@@ -118,32 +144,17 @@ class Simulator:
 
     @staticmethod
     def _validate_finite_number(name, value):
-          """
-        Validate that a value is a finite real number, excluding booleans.
+          """Check that a value is a finite real number (booleans excluded).
 
-        This helper provides consistent numeric validation for the
-        simulator's configuration parameters and waypoint coordinates.
-        Booleans are explicitly rejected even though bool is a subclass
-        of int in Python.
+        Booleans are rejected explicitly because bool is a subclass of int.
 
         Args:
-            name (str):
-                The name of the argument being validated. Used to
-                produce an informative error message.
-
-            value (Real):
-                The value that must be a finite real number.
-
-        Returns:
-            None:
-                The method returns normally when validation succeeds.
+            name (str): Name of the argument, used in the error message.
+            value (Real): Value to check.
 
         Raises:
-            TypeError:
-                If value is a boolean or is not an instance of Real.
-
-            ValueError:
-                If value is NaN, positive infinity, or negative infinity.
+            TypeError: If value is a boolean or not a real number.
+            ValueError: If value is NaN or infinite.
         """
 
           if isinstance(value, bool) or not isinstance(value, Real):
@@ -156,30 +167,16 @@ class Simulator:
     @staticmethod
     def _validate_positive_number(name, value):
             """
-        Validate that a value is a finite real number greater than zero.
-
-        First checks the value's type and finiteness, then checks that
-        it is strictly positive. Zero and negative values are rejected.
+            Check that a value is a finite real number greater than zero.
 
         Args:
-            name (str):
-                The name of the argument being validated, used in
-                error messages.
-
-            value (Real):
-                The value to validate.
-
-        Returns:
-            None:
-                The method returns normally when validation succeeds.
+            name (str): Name of the argument, used in the error message.
+            value (Real): Value to check.
 
         Raises:
-            TypeError:
-                If value is a boolean or is not a real number.
-
-            ValueError:
-                If value is non-finite or is less than or equal to zero.
-            """
+            TypeError: If value is a boolean or not a real number.
+            ValueError: If value is not finite or is <= 0.
+        """
 
             Simulator._validate_finite_number(name, value)
 
@@ -191,63 +188,33 @@ class Simulator:
 
     @staticmethod
     def _validate_init_args(grid_map,waypoints,heading_pid,speed_pid,dt,waypoint_threshold,goal_threshold,t_max,start_theta):
-        """
-        Validate the arguments supplied to Simulator.__init__().
+        """    
+            Validate the arguments of Simulator.__init__().
 
-        The method checks the types of the map and PID controllers,
-        ensures that the two controllers are distinct objects, validates
-        the numeric configuration values, and checks that all waypoints
-        are well-formed and located in free map space.
+            Checks, in this order: the types of the map and the PIDs, that the
+            two PIDs are different objects, the numeric settings, and the
+            waypoints. It only validates and returns nothing.
 
-        The waypoint iterable is materialised into a tuple exactly once.
-        This allows one-shot iterables, such as generators, to be
-        validated and then reused by the constructor.
+            Args:
+                grid_map (Map): Map the waypoints must lie on.
+                waypoints (tuple): Already normalised by _normalize_waypoints(), a tuple of (x, y) pairs in metres.                   
+                heading_pid (PID): Controller for the heading.
+                speed_pid (PID): Controller for the speed.
+                dt (Real): Time step in seconds, > 0.
+                waypoint_threshold (Real): Intermediate waypoint tolerance in
+                    metres, > 0.
+                goal_threshold (Real): Final goal tolerance in metres, > 0.
+                t_max (Real): Maximum simulated time in seconds, > 0.
+                start_theta (Real): Initial heading in radians, finite.
 
-        Args:
-            grid_map (Map):
-                The occupancy grid map used for waypoint validation.
-
-            waypoints (Iterable):
-                An iterable of waypoint coordinate pairs in metres.
-
-            heading_pid (PID):
-                The PID controller for heading correction.
-
-            speed_pid (PID):
-                The PID controller for linear speed control.
-
-            dt (Real):
-                The simulation time step, which must be positive.
-
-            waypoint_threshold (Real):
-                The positive distance tolerance for intermediate
-                waypoints, in metres.
-
-            goal_threshold (Real):
-                The positive distance tolerance for the final goal,
-                in metres.
-
-            t_max (Real):
-                The positive maximum simulation duration, in seconds.
-
-            start_theta (Real):
-                The initial heading in radians; must be finite.
-
-        Raises:
-            TypeError:
-                If grid_map is not a Map instance, either controller
-                is not a PID instance, waypoints is not an acceptable
-                iterable, a waypoint is not an iterable, or a
-                coordinate is not a real number or is a boolean.
-
-            ValueError:
-                If the PID arguments refer to the same object, a
-                numeric parameter is invalid, the waypoint collection
-                contains less than 2 waypoints, a waypoint does not contain exactly two
-                coordinates, or a waypoint is not in free map space.
-                      
-            
-        """
+            Raises:
+                TypeError: If a type is wrong, a waypoint is not an iterable
+                    pair, or a number is not a real number (booleans rejected).
+                ValueError: If both PIDs are the same object, a number is not
+                    finite or out of range, fewer than two waypoints are given,
+                    a waypoint has other than two coordinates, or a waypoint is
+                    outside the map or on an obstacle.
+            """
        
         
             #validate object types.
@@ -285,30 +252,15 @@ class Simulator:
             "start_theta", start_theta
         )
 
-        #validate waypoint container.
-        if isinstance(waypoints, (str, bytes)):
-            raise TypeError(
-                "waypoints must be an iterable of (x, y) pairs."
-            )
-
-        if not isinstance(waypoints, Iterable):
-            raise TypeError(
-                "waypoints must be an iterable of (x, y) pairs."
-            )
-
-        #materialize generators once so they can be checked and reused.
-        points = tuple(waypoints)
-
-        #verify that tuple contains at least 2 elements
-        if len(points) < 2:
+        # Validate waypoint container.
+        if len(waypoints) < 2:
             raise ValueError(
-                "waypoints must be at least 2 ."
+                f"Waypoints must contain at least 2 points; "
+                f"received {len(waypoints)}."
             )
 
- 
-
-        #validate each waypoint and check map occupancy.
-        for i, point in enumerate(points):
+        # Validate each waypoint and check map occupancy.
+        for i, point in enumerate(waypoints):
 
             if isinstance(point, (str, bytes)):
                 raise TypeError(
@@ -324,7 +276,7 @@ class Simulator:
 
             if len(coordinates) != 2:
                 raise ValueError(
-                    f"Waypoint  must contain exactly two coordinates."
+                    f"Waypoint {i} must contain exactly two coordinates."
                 )
 
             x, y = coordinates
@@ -336,13 +288,58 @@ class Simulator:
                 f"waypoints[{i}].y", y
             )
 
-            #reject points outside the map or inside obstacles.
             if not grid_map.is_free(float(x), float(y)):
                 raise ValueError(
                     f"Waypoint {i} ({x}, {y}) is outside the map "
                     "or lies inside an obstacle."
                 )
+            
 
+
+    #method to generalise the waypoints
+    @staticmethod
+    def _normalize_waypoints(waypoints):
+        """
+        Read the waypoints once and return them as a tuple of tuples.
+
+        One-shot iterables such as generators are consumed here, so the
+        result can be validated and stored without iterating the original
+        argument a second time. Only the structure is converted; the
+        values are checked later by _validate_init_args().
+
+        Args:
+            waypoints (Iterable): Waypoints as (x, y) pairs.
+
+        Returns:
+            tuple: One tuple per waypoint (an item that is not an iterable
+            is left unchanged and rejected by the validator).
+
+        Raises:
+            TypeError: If waypoints is a string or bytes, is not an
+                iterable, or a waypoint cannot be converted to a tuple.
+        """
+
+        if isinstance(waypoints, (str, bytes)):
+            raise TypeError(
+                "waypoints must be an iterable of (x, y) pairs."
+            )
+
+        if not isinstance(waypoints, Iterable):
+            raise TypeError(
+                "waypoints must be an iterable of (x, y) pairs."
+            )
+
+        try:
+            return tuple(
+                tuple(point) if not isinstance(point, (str, bytes))
+                and isinstance(point, Iterable)
+                else point
+                for point in waypoints
+            )
+        except TypeError as exc:
+            raise TypeError(
+                "Each waypoint must be an iterable of coordinates."
+            ) from exc
        
 
 
