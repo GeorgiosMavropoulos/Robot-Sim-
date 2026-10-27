@@ -427,6 +427,54 @@ class Simulator:
 
 
 
+    def heading_error(theta,desired_angle):
+
+        """
+         Computes the difference between current angle and the desired angle by substracting desired_angle - current_angle.
+         Normalises the angle using the method angle_wrap(computed_difference).
+         A positive error means the target is to the left.
+
+         Args:
+              theta: float 
+              desired_angle: float
+
+         Returns:
+                 normalised_angle: float
+
+         Raises:
+               TypeError: 
+                         theta or desired_angle is not a real number
+
+                ValueError:
+                            theta or desired_angle are not finite numbers
+        
+        """
+
+        #raise an error if theta is not a Real number
+        if isinstance(theta, bool) or not isinstance(theta, Real):
+            raise TypeError("theta must be a real number")
+
+        #raise an error if desired_angle is not a Real number
+        if isinstance(desired_angle, bool) or not isinstance(desired_angle, Real):
+            raise TypeError("desired_angle must be a real number")
+
+        #raise an error if theta or desired_angle are not finite numbers
+        if not math.isfinite(theta) or not math.isfinite(desired_angle):
+            raise ValueError("Angles must be finite numbers")
+
+        #computes the difference between current angle and the desired angle.
+        difference = desired_angle - theta
+
+        #normalise the difference 
+        normalised_difference = angle_wrap(difference)
+
+        return normalised_difference
+
+
+
+
+
+
 
 
 
