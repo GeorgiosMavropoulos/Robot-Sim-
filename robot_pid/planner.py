@@ -180,10 +180,13 @@ class AStarPlanner:
        #validate that the start and goal cells are inside the map
        # and are not occupied by obstacles.
        if not self.map_instance.is_free_cell(start):
-        raise ValueError("Start cell must be inside the map and free.")
+        raise TypeError("Start cell must be inside the map and free.")
 
        if not self.map_instance.is_free_cell(goal):
-        raise ValueError("Goal cell must be inside the map and free.")
+        raise TypeError("Goal cell must be inside the map and free.")
+
+       #convert start into a tuple list because g_score requires a hashable key
+       start = tuple(start)
 
        #priority queue containing (estimated total cost, cell).
        open_list = []
@@ -206,11 +209,11 @@ class AStarPlanner:
        #continue searching while there are cells left to explore.
        while open_list:
           #remove the cell with the lowest estimated total cost
-          _current, current = heapq.heappop(open_list) 
+          current_f, current = heapq.heappop(open_list) 
 
           #skip outdated entries whose cost is worse than the
           # best estimate currently recorded for this cell.
-          if current in f_score and _current > f_score[current]:
+          if current in f_score and current_f > f_score[current]:
             continue
 
           #if the goal is reached, reconstruct and return the path.
@@ -225,7 +228,7 @@ class AStarPlanner:
              #moving to an adjacent cell costs one step.
              temp_g = g_score[current] + 1
 
-             #pdate the neighbour only if this route is better
+             #update the neighbour only if this route is better
              # than any previously discovered route.
              if temp_g < g_score.get(neighbor, float("inf")):
                 #record the cell from which this neighbour was reached.
@@ -271,9 +274,9 @@ class AStarPlanner:
                         obstacle (invalid input, as opposed to "no path").
                     TypeError: If start or goal is not a pair of integers
                         (raised by Map.is_free_cell).
-                        TypeError: if path is not a tuple with 2 elements
+                        
                 
-    """
+        """
 
        #call plan method to retrieve the path
        path = self.plan(start,goal)
@@ -289,6 +292,8 @@ class AStarPlanner:
            
 
        return waypoints
+
+
 
 
 
