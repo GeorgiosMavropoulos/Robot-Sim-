@@ -343,7 +343,7 @@ class Simulator:
        
 
 
-         
+    @staticmethod     
     def distance_between_two_waypoints(x,y):
          """
             Calcuates the distance between two waypoints
@@ -357,7 +357,7 @@ class Simulator:
 
             Raises:
                 TypeError: If inputs are not tuples or coordinates are not numbers.
-                ValueError: If tuples have invalid length or coordinates are negative or non-finite.
+                ValueError: If tuples have invalid length
                             
          
          """
@@ -380,17 +380,12 @@ class Simulator:
                     f"Coordinates in {name} must be finite."
                 )
 
-            if coordinate < 0:
-                raise ValueError(
-                    f"Coordinates in {name} cannot be negative."
-                )
-
          return math.dist(x, y)
 
 
 
-    
-    def compute_angle_between_start_and_goal(self,start,goal):
+    @staticmethod
+    def compute_angle_between_start_and_goal(start,goal):
         """
            Computes the angle the angle of the line which connects the starting point with the goal point using atan2 math module's function.
            Args:
@@ -410,13 +405,13 @@ class Simulator:
          if not math.isfinite(value):
             raise ValueError(f"{name} must be finite.")
 
-        #raise value error if start and goal's values are 0
-        if start == 0 and goal == 0:
-            raise ValueError("Cannot compute an angle for a zero-length vector.")
         
+        #compute the coordinate differences
+        dx = goal[0] - start[0]
+        dy = goal[1] - start[1]
         
         #compute the angle
-        angle = math.atan2(start, goal)
+        angle = math.atan2(dx, dy)
 
         return angle
 
