@@ -44,7 +44,7 @@ Cells are (row, col). Positions in metres are (x, y), where x corresponds
 to the column and y to the row.
 """
 #import map class
-from map import Map
+from .map import Map
 import math
 import heapq
 class AStarPlanner:
