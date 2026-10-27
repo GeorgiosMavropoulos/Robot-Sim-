@@ -387,46 +387,55 @@ class Simulator:
     @staticmethod
     def compute_angle_between_start_and_goal(start,goal):
         """
-        Computes the angle in radians of the line connecting the start
-        waypoint to the goal waypoint using math.atan2().
+        Computes the angle in radians from the start waypoint
+        to the goal waypoint, measured counter-clockwise from +x.
 
         Args:
-            start (tuple): Starting waypoint as (x, y).
-            goal (tuple): Goal waypoint as (x, y).
+            start (tuple): Starting waypoint (x, y).
+            goal (tuple): Goal waypoint (x, y).
 
         Returns:
-            float: Angle in radians, measured from the positive x-axis.
+            float: Angle in radians, wrapped to [-pi, pi).
 
         Raises:
-            TypeError: If start or goal is not a tuple, or if a coordinate
-                    is not a real number.
-            ValueError: If either waypoint does not contain exactly two
-                        coordinates, or if a coordinate is negative or
-                        non-finite.
+            TypeError: If a waypoint is not a tuple or its coordinates
+                    are not real numbers.
+            ValueError: If a waypoint does not contain exactly two
+                        coordinates or any coordinate is not finite.
         """
 
         #raise TypeError if start and goal are not real numbers.
-        for name, value in (("start", start), ("goal", goal)):
-         if isinstance(value, bool) or not isinstance(value, Real):
-            raise TypeError(f"{name} must be a real number.")
+        for name, point in (("start", start), ("goal", goal)):
 
-        #raise ValueError if start or goal are not finite numbers
-         if not math.isfinite(value):
-            raise ValueError(f"{name} must be finite.")
+         if not isinstance(point, tuple):
+            raise TypeError(f"{name} must be a tuple.")
 
-        
-        #compute the coordinate differences
+         if len(point) != 2:
+            raise ValueError(
+                f"{name} must contain exactly two coordinates."
+            )
+
+         for coordinate in point:
+            if isinstance(coordinate, bool) or not isinstance(coordinate, Real):
+                raise TypeError(
+                    f"Coordinates in {name} must be real numbers."
+                )
+
+            if not math.isfinite(coordinate):
+                raise ValueError(
+                    f"Coordinates in {name} must be finite."
+                )
+
         dx = goal[0] - start[0]
         dy = goal[1] - start[1]
-        
-        #compute the angle
-        angle = math.atan2(dx, dy)
 
-        return angle
+        angle = math.atan2(dy, dx)
 
+        return angle_wrap(angle)
 
 
 
+    @staticmethod
     def heading_error(theta,desired_angle):
 
         """
@@ -474,8 +483,13 @@ class Simulator:
 
 
 
+grid_map= Map(5,5)
+waypoints = ((0.1, 0.1), (0.3, 0.3), (0.7, 0.5))
+heading_pid = PID(0.5,0.2,0.1)
+speed_pid = PID (0.5,0.3,0.2)
 
-
+sim = Simulator(grid_map,waypoints,heading_pid,speed_pid)
+print(sim.heading_error(0.0, math.pi / 2))
 
 
 
