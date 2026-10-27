@@ -387,13 +387,22 @@ class Simulator:
     @staticmethod
     def compute_angle_between_start_and_goal(start,goal):
         """
-           Computes the angle the angle of the line which connects the starting point with the goal point using atan2 math module's function.
-           Args:
-                start: float value
-                goal: float value
+        Computes the angle in radians of the line connecting the start
+        waypoint to the goal waypoint using math.atan2().
 
-          Returns:
-                  angle: float value in radians
+        Args:
+            start (tuple): Starting waypoint as (x, y).
+            goal (tuple): Goal waypoint as (x, y).
+
+        Returns:
+            float: Angle in radians, measured from the positive x-axis.
+
+        Raises:
+            TypeError: If start or goal is not a tuple, or if a coordinate
+                    is not a real number.
+            ValueError: If either waypoint does not contain exactly two
+                        coordinates, or if a coordinate is negative or
+                        non-finite.
         """
 
         #raise TypeError if start and goal are not real numbers.
