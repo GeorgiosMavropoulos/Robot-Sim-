@@ -344,7 +344,49 @@ class Simulator:
 
 
          
+    def distance_between_two_waypoints(x,y):
+         """
+            Calcuates the distance between two waypoints
 
+            Args:
+                 x: tuple containing the coordinates (x1, y1).
+                 y: tuple containing the coordinates (x2, y2).
+
+            Returns:
+                 float: distance between 2 waypoints
+
+            Raises:
+                TypeError: If inputs are not tuples or coordinates are not numbers.
+                ValueError: If tuples have invalid length or coordinates are negative or non-finite.
+                            
+         
+         """
+
+         #validate errors
+         for name, point in (("x", x), ("y", y)):
+          if not isinstance(point, tuple):
+            raise TypeError(f"{name} must be a tuple.")
+
+          if len(point) != 2:
+            raise ValueError(f"{name} must contain exactly two coordinates.")
+
+          for coordinate in point:
+            if isinstance(coordinate, bool) or not isinstance(coordinate, Real):
+                raise TypeError(
+                    f"Coordinates in {name} must be real numbers."
+                )
+
+            if not math.isfinite(coordinate):
+                raise ValueError(
+                    f"Coordinates in {name} must be finite."
+                )
+
+            if coordinate < 0:
+                raise ValueError(
+                    f"Coordinates in {name} cannot be negative."
+                )
+
+         return math.dist(x, y)
 
 
 
