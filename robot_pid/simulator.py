@@ -482,6 +482,31 @@ class Simulator:
 
         return normalised_difference
 
+    
+    def _create_robot(self):
+        """
+           This method initialises an instance of the Robot class. Robot's position is the first waypoint while its heading is the self.start_theta.
+           It takes the first item from waypoints tuple, and unpacks in 2 variables
+
+           Args:
+                  None
+           
+           Returns:
+                   A robot object
+        """
+
+
+        #take the first item from the waypoints list
+        first_waypoint =  self.waypoints[0] 
+        #unpack the item in 2 variables
+        start_x, start_y = first_waypoint
+        #initialise the robot
+        robot = Robot(start_x, start_y,self.start_theta)
+
+       
+        return robot
+
+
 
 
 
