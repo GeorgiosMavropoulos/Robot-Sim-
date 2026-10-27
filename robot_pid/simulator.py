@@ -361,7 +361,6 @@ class Simulator:
                             
          
          """
-
          #validate errors
          for name, point in (("x", x), ("y", y)):
           if not isinstance(point, tuple):
@@ -387,6 +386,40 @@ class Simulator:
                 )
 
          return math.dist(x, y)
+
+
+
+    
+    def compute_angle_between_start_and_goal(self,start,goal):
+        """
+           Computes the angle the angle of the line which connects the starting point with the goal point using atan2 math module's function.
+           Args:
+                start: float value
+                goal: float value
+
+          Returns:
+                  angle: float value in radians
+        """
+
+        #raise TypeError if start and goal are not real numbers.
+        for name, value in (("start", start), ("goal", goal)):
+         if isinstance(value, bool) or not isinstance(value, Real):
+            raise TypeError(f"{name} must be a real number.")
+
+        #raise ValueError if start or goal are not finite numbers
+         if not math.isfinite(value):
+            raise ValueError(f"{name} must be finite.")
+
+        #raise value error if start and goal's values are 0
+        if start == 0 and goal == 0:
+            raise ValueError("Cannot compute an angle for a zero-length vector.")
+        
+        
+        #compute the angle
+        angle = math.atan2(start, goal)
+
+        return angle
+
 
 
 
