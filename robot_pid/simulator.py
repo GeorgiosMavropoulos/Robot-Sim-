@@ -33,6 +33,14 @@ Simulator(grid_map, waypoints, heading_pid, speed_pid, dt=0.1,
 Simulator.run() -> dict
     Run the simulation once and return the recorded data (keys are
     listed in the docstring of run()).
+Simulator.cross_track_error(data) -> (float, float)
+    Mean and maximum distance of the recorded trajectory from the
+    planned path segments, in metres.
+Simulator.draw_map(screen, scale, ...) -> None
+    Draw the occupancy grid on a pygame surface (pygame is imported
+    inside the method, so run() stays headless).
+Simulator.world_to_screen(x, y, scale) -> (int, int)
+    Convert a point in metres to pixel coordinates.
 Simulator.distance_between_two_waypoints(x, y) -> float
     Euclidean distance between two (x, y) points (static method).
 Simulator.compute_angle_between_start_and_goal(start, goal) -> float
@@ -41,6 +49,7 @@ Simulator.compute_angle_between_start_and_goal(start, goal) -> float
 Simulator.heading_error(theta, desired_angle) -> float
     Wrapped difference desired_angle - theta. Positive means the target
     is to the left (static method).
+
 
 Internal helpers
 ----------------
@@ -51,6 +60,9 @@ Simulator._validate_init_args(grid_map, waypoints, heading_pid, speed_pid,
           dt, waypoint_threshold, goal_threshold, t_max, start_theta)
 Simulator._validate_finite_number(name, value)
 Simulator._validate_positive_number(name, value)
+
+Simulator.distance_point_to_segment(point, a, b) -> float
+    Shortest distance from a point to the segment a-b (static method).
 
 Control loop (see Simulator.run)
 --------------------------------
@@ -725,8 +737,9 @@ class Simulator:
                TypeError:
                         If data is not a dictionary returned by run()
 
-               ValueError:
-                         If data's x and y values are empty or not equal
+               ValueError: 
+                          If x or y is not finite, or scale is not finite  and greater than zero.
+               
         """
 
         #raise TypeError if data is not a dictionary
@@ -737,6 +750,10 @@ class Simulator:
         if len(data["x"]) == 0 or len(data["x"]) != len(data["y"]):
             raise ValueError("data['x'] and data['y'] must be non-empty and equally long.")
 
+        #validate that data.x and data.y are valid finite numbers
+        for i, (x, y) in enumerate(zip(data["x"], data["y"])):
+            Simulator._validate_finite_number(f"data['x'][{i}]", x)
+            Simulator._validate_finite_number(f"data['y'][{i}]", y)
         
         segments = list(zip(self.waypoints[:-1], self.waypoints[1:]))
 
@@ -787,8 +804,35 @@ class Simulator:
             free_color (tuple): RGB colour of free cells.
             obstacle_color (tuple): RGB colour of obstacle cells.
             grid_color (tuple): RGB colour of the cell outlines.
+
+        Raises:
+            TypeError: If screen is not a pygame.Surface, scale is not a
+                real number, or a colour is not an RGB tuple.
+            ValueError: If scale is not finite and greater than zero, or a
+                colour channel is outside 0-255.
+
         """
         import pygame
+
+        #raise Type error if screen is not a pygame surface
+        if not isinstance(screen, pygame.Surface):
+            raise TypeError("screen must be a pygame.Surface.")
+
+        Simulator._validate_positive_number("scale", scale) #validate that scale is a positive number or raise an error
+
+        #raise an error if colours ar not HEX tuples or channels are not integers in range of 0-255
+        for name, color in (("free_color", free_color),
+                            ("obstacle_color", obstacle_color),
+                            ("grid_color", grid_color)):
+            if not isinstance(color, tuple) or len(color) != 3:
+                raise TypeError(f"{name} must be an (R, G, B) tuple.")
+            for channel in color:
+                if isinstance(channel, bool) or not isinstance(channel, int):
+                    raise TypeError(f"{name} channels must be integers.")
+                if not 0 <= channel <= 255:
+                    raise ValueError(f"{name} channels must be in 0-255.")
+
+                
 
         cell_px = self.grid_map.cell_size * scale
 
