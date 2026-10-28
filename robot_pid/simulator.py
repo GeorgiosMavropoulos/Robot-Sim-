@@ -720,7 +720,24 @@ class Simulator:
 
         Returns:
             tuple[float, float]: (mean_error, max_error) in metres.
+
+        Raises:
+               TypeError:
+                        If data is not a dictionary returned by run()
+
+               ValueError:
+                         If data's x and y values are empty or not equal
         """
+
+        #raise TypeError if data is not a dictionary
+        if not isinstance(data, dict) or "x" not in data or "y" not in data:
+            raise TypeError("data must be the dict returned by run().")
+
+        #raise ValueError if data.x value and data.y value are empty or not equal
+        if len(data["x"]) == 0 or len(data["x"]) != len(data["y"]):
+            raise ValueError("data['x'] and data['y'] must be non-empty and equally long.")
+
+        
         segments = list(zip(self.waypoints[:-1], self.waypoints[1:]))
 
         errors = []
@@ -731,6 +748,65 @@ class Simulator:
             )
 
         return sum(errors) / len(errors), max(errors)
+
+
+
+    def world_to_screen(self, x, y, scale):
+        """
+        Convert a point in metres to pixel coordinates.
+
+        The map origin is the top-left corner of the window, x grows to the
+        right and y grows downwards, the same as rows in the grid, so no
+        flipping is needed.
+
+        Args:
+            x (float): Horizontal position in metres.
+            y (float): Vertical position in metres.
+            scale (float): Pixels per metre.
+
+        Returns:
+            tuple[int, int]: (px, py) pixel position.
+        """
+        return int(round(x * scale)), int(round(y * scale))
+
+
+    def draw_map(self, screen, scale, free_color=(245, 245, 245),
+                 obstacle_color=(40, 40, 40), grid_color=(210, 210, 210)):
+        """
+        Draw the occupancy grid on a pygame surface.
+
+        Every cell is drawn as a filled square: obstacle cells in
+        obstacle_color and free cells in free_color, with a thin outline in
+        grid_color on free cells. Pygame is imported here, so the rest of
+        the Simulator can still run without it.
+
+        Args:
+            screen (pygame.Surface): Surface to draw on.
+            scale (float): Pixels per metre. The window size should be
+                cols * cell_size * scale by rows * cell_size * scale.
+            free_color (tuple): RGB colour of free cells.
+            obstacle_color (tuple): RGB colour of obstacle cells.
+            grid_color (tuple): RGB colour of the cell outlines.
+        """
+        import pygame
+
+        cell_px = self.grid_map.cell_size * scale
+
+        for row in range(self.grid_map.rows):
+            for col in range(self.grid_map.cols):
+                # round the corner and use ceil for the size, so there are
+                # no one-pixel gaps between neighbouring cells
+                rect = pygame.Rect(
+                    round(col * cell_px),
+                    round(row * cell_px),
+                    math.ceil(cell_px),
+                    math.ceil(cell_px),
+                )
+                if self.grid_map.is_free_cell((row, col)):
+                    pygame.draw.rect(screen, free_color, rect)
+                    pygame.draw.rect(screen, grid_color, rect, 1)
+                else:
+                    pygame.draw.rect(screen, obstacle_color, rect)
 
 
 
