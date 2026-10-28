@@ -30,19 +30,35 @@ Simulator(grid_map, waypoints, heading_pid, speed_pid, dt=0.1,
           waypoint_threshold=0.15, goal_threshold=0.1, t_max=60.0,
           start_theta=0.0)
     Validate and store the configuration of one simulation.
+Simulator.run() -> dict
+    Run the simulation once and return the recorded data (keys are
+    listed in the docstring of run()).
+Simulator.distance_between_two_waypoints(x, y) -> float
+    Euclidean distance between two (x, y) points (static method).
+Simulator.compute_angle_between_start_and_goal(start, goal) -> float
+    Direction from start to goal in radians, wrapped to [-pi, pi)
+    (static method).
+Simulator.heading_error(theta, desired_angle) -> float
+    Wrapped difference desired_angle - theta. Positive means the target
+    is to the left (static method).
 
 Internal helpers
 ----------------
+Simulator._create_robot() -> Robot
+    Build a new Robot at the first waypoint with heading start_theta.
 Simulator._normalize_waypoints(waypoints)
-Simulator._validate_init_args(grid_map, waypoints, heading_pid, speed_pid, dt=0.1,
-          waypoint_threshold=0.15, goal_threshold=0.1, t_max=60.0,
-          start_theta=0.0)
-
+Simulator._validate_init_args(grid_map, waypoints, heading_pid, speed_pid,
+          dt, waypoint_threshold, goal_threshold, t_max, start_theta)
 Simulator._validate_finite_number(name, value)
 Simulator._validate_positive_number(name, value)
 
-heading_error(theta,desired_angle)
-compute_angle_between_start_and_goal(start,goal)
+Control loop (see Simulator.run)
+--------------------------------
+Heading PID: wrapped heading error towards the next waypoint -> omega.
+Speed PID: distance to the final waypoint -> v, scaled by
+max(0, cos(heading error)). A waypoint is reached within
+waypoint_threshold (goal_threshold for the last one). A run ends when the
+goal is reached, the robot leaves the free space, or t_max is exceeded.
 
 
 """
@@ -485,14 +501,63 @@ class Simulator:
     
     def _create_robot(self):
         """
-           This method initialises an instance of the Robot class. Robot's position is the first waypoint while its heading is the self.start_theta.
-           It takes the first item from waypoints tuple, and unpacks in 2 variables
+        Run one waypoint-following simulation and return the recorded data.
 
-           Args:
-                  None
-           
-           Returns:
-                   A robot object
+        A new Robot is created at the first waypoint with heading
+        start_theta, and both PID controllers are reset. Repeated calls on
+        the same Simulator therefore start from the same state and give the
+        same result.
+
+        At every time step the method:
+            1. Takes the current target waypoint (waypoints[1] at the start).
+            2. Checks whether the target is reached. The final waypoint uses
+               goal_threshold and ends the run. An intermediate waypoint uses
+               waypoint_threshold and the target moves to the next one
+               without consuming simulated time.
+            3. Computes the heading error towards the target (wrapped to
+               [-pi, pi)) and the distance from the robot to the final
+               waypoint.
+            4. Passes the heading error to heading_pid to get the angular
+               velocity command omega_com (rad/s), and the distance to the
+               goal to speed_pid to get the forward velocity command
+               v_com (m/s).
+            5. Scales v_com by max(0, cos(heading_error)), so the robot
+               slows down in sharp turns and does not drive forward when the
+               target is behind it. v_com is never negative.
+            6. Advances the robot with the unicycle model (Robot.step) and
+               checks the new position against the map.
+            7. Records the new state.
+
+        The loop stops at the first of these events:
+            - the final waypoint is reached within goal_threshold
+              (reached_goal is True);
+            - the new position is outside the map or inside an obstacle
+              (collision_counter is 1; that position is not recorded);
+            - the simulated time reaches t_max (reached_goal is False).
+
+        Args:
+              None
+
+        Returns:
+            dict: Recorded results. Every list has one entry per recorded
+            state and starts with the initial state at t = 0.0, so the first
+            entries of "v_com" and "omega_com" are 0.0 placeholders.
+
+            - "t" (list[float]): Simulated time in seconds.
+            - "x", "y" (list[float]): Robot position in metres.
+            - "theta" (list[float]): Robot heading in radians, in [-pi, pi).
+            - "v_com" (list[float]): Forward velocity command in m/s.
+            - "omega_com" (list[float]): Angular velocity command in rad/s.
+            - "reached_goal" (list[bool]): False everywhere except possibly
+              the last entry, which is True if the goal was reached.
+            - "index" (list[int]): Index of the target waypoint used at
+              each step.
+            - "collision_counter" (int): 1 if the run ended in a collision,
+              otherwise 0.
+
+        Raises:
+            ValueError: If a controller or the robot produces a non-finite
+                value (propagated from PID.update() or Robot.step()).
         """
 
 
@@ -505,6 +570,118 @@ class Simulator:
 
        
         return robot
+
+
+
+    def run(self):
+        """Run the waypoint-following simulation and return recorded data."""
+
+        #create a fresh robot and reset both controllers.
+        robot = self._create_robot()
+        self.heading_pid.reset()
+        self.speed_pid.reset()
+
+        #recorded data: every field is a list, with one value per time step.
+        robot_data = {
+            "t": [0.0],
+            "x": [robot.x],
+            "y": [robot.y],
+            "theta": [robot.theta],
+            "v_com": [0.0],
+            "omega_com": [0.0],
+            "reached_goal": [False],
+            "index": [1],
+        }
+
+        t = 0.0
+        index = 1
+        collision_counter = 0
+        reached_goal = False
+
+        #run this loop while time didn't reach the maximum allowed time and the robot didn't reach the goal
+        while t < self.t_max and not reached_goal:
+            #current target waypoint.
+            goal = self.waypoints[index]
+
+            #calculate the distance from the robot's current position to the target.
+            distance = self.distance_between_two_waypoints(
+                (robot.x, robot.y), goal
+            )
+
+            #check whether the robot has reached the final goal.
+            if index == len(self.waypoints) - 1:
+                
+                if distance <= self.goal_threshold:
+                    #set reached goal to True if robot reached the goal, 
+                    reached_goal = True
+                    robot_data["reached_goal"][-1] = True #change the last value from the list to True
+                    break
+            elif distance <= self.waypoint_threshold:
+                #move to the next waypoint.
+                index += 1
+                continue
+
+            #calculate the desired heading and heading error.
+            desired_angle = self.compute_angle_between_start_and_goal(
+                (robot.x, robot.y), goal
+            )
+            error_theta = self.heading_error(robot.theta, desired_angle)
+
+            #compute a second distance from the robot’s position to the last waypoint of the path
+            distance_to_goal = self.distance_between_two_waypoints((robot.x,robot.y),self.waypoints[-1])
+            #calculate the controller commands.
+            omega_com = self.heading_pid.update(error_theta, self.dt) #update the angular error
+            v_com = self.speed_pid.update(distance_to_goal, self.dt) 
+                      
+            #if error_theta < 0, swap its value with 0 and multiply v_com * error_theta
+            speed_factor = max(0.0, math.cos(error_theta))
+            v_com *= speed_factor
+
+            
+            #prevent from commanding negative forward speed.
+            v_com = max(0.0, v_com)
+
+            #clculate the next robot pose using unicycle kinematics.
+            robot.step(v_com,omega_com,self.dt)
+
+             #stop if the next position is outside the map or in an obstacle.
+            if not self.grid_map.is_free(robot.x, robot.y):
+             collision_counter += 1
+             break
+
+            #increment simulation time.
+            t += self.dt
+
+            #record this time step.
+            robot_data["t"].append(t)
+            robot_data["x"].append(robot.x)
+            robot_data["y"].append(robot.y)
+            robot_data["theta"].append(robot.theta)
+            robot_data["v_com"].append(v_com)
+            robot_data["omega_com"].append(omega_com)
+            robot_data["reached_goal"].append(reached_goal)
+            robot_data["index"].append(index)
+
+        #return the recorded simulation results.
+        robot_data["reached_goal"][-1] = reached_goal
+        robot_data["collision_counter"] = collision_counter
+
+        return robot_data
+
+
+
+
+
+map = Map(5,5)
+waypoints = (0.1, 0.1), (0.5, 0.1), (0.9, 0.1)
+pid_h = PID(2,0.1,0.1)
+pid_s = PID(1.0,0.1,0.2)
+sim = Simulator(map,waypoints,pid_h,pid_s)
+print(sim.run())
+
+
+
+
 
 
 
