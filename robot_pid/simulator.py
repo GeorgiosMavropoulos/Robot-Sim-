@@ -670,14 +670,68 @@ class Simulator:
 
 
 
+    @staticmethod
+    def distance_point_to_segment(point, a, b):
+        """
+        Shortest distance from a point to the line segment a-b.
+
+        The point is projected onto the infinite line through a and b. The
+        projection parameter t is clamped to [0, 1], so a point beyond one
+        end of the segment is measured to that end point and not to the
+        extended line.
+
+        Args:
+            point (tuple): (x, y) in metres.
+            a (tuple): (x, y) start of the segment.
+            b (tuple): (x, y) end of the segment.
+
+        Returns:
+            float: Distance in metres.
+        """
+        px, py = point
+        ax, ay = a
+        bx, by = b
+
+        abx, aby = bx - ax, by - ay
+        length_sq = abx * abx + aby * aby
+
+        #degenerate segment (a == b): distance to the single point
+        if length_sq == 0:
+            return math.dist(point, a)
+
+        #t = 0 at a, t = 1 at b
+        t = ((px - ax) * abx + (py - ay) * aby) / length_sq
+        t = max(0.0, min(1.0, t))
+
+        closest = (ax + t * abx, ay + t * aby)
+        return math.dist(point, closest)
 
 
-map = Map(5,5)
-waypoints = (0.1, 0.1), (0.5, 0.1), (0.9, 0.1)
-pid_h = PID(2,0.1,0.1)
-pid_s = PID(1.0,0.1,0.2)
-sim = Simulator(map,waypoints,pid_h,pid_s)
-print(sim.run())
+    def cross_track_error(self, data):
+        """
+        Average and maximum cross-track error of a recorded run.
+
+        For every recorded robot position, the error is the minimum distance
+        to any segment of the planned path (self.waypoints). The statistics
+        are taken over all recorded positions.
+
+        Args:
+            data (dict): Result of run(); uses data["x"] and data["y"].
+
+        Returns:
+            tuple[float, float]: (mean_error, max_error) in metres.
+        """
+        segments = list(zip(self.waypoints[:-1], self.waypoints[1:]))
+
+        errors = []
+        for x, y in zip(data["x"], data["y"]):
+            errors.append(
+                min(self.distance_point_to_segment((x, y), a, b)
+                    for a, b in segments)
+            )
+
+        return sum(errors) / len(errors), max(errors)
+
 
 
 
