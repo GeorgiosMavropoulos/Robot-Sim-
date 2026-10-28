@@ -17,7 +17,10 @@ radians with metres.
 The constructor only validates and stores configuration. The robot and
 the recorded results are created at the start of each run, so repeated
 runs never leak state into each other.
-Nothing here starts pygame, so runs can be headless.
+run() only computes and records the data and opens no window. The
+visualisation is a separate step: main.py calls animate() (pygame) and
+plot_results() (matplotlib) on the data that run() returns, so a run can
+be repeated without any window for experiments and tests.
 
 Coordinate convention
 ---------------------
@@ -50,6 +53,13 @@ Simulator.heading_error(theta, desired_angle) -> float
     Wrapped difference desired_angle - theta. Positive means the target
     is to the left (static method).
 
+Simulator.animate(data, scale=150, fps=None) -> None
+    Replay a recorded run in a pygame window (called from main.py).
+Simulator.plot_results(data) -> None
+    Show a matplotlib figure with the planned path and the robot
+    trajectory (called from main.py).
+
+
 
 Internal helpers
 ----------------
@@ -79,7 +89,7 @@ goal is reached, the robot leaves the free space, or t_max is exceeded.
 from .map import Map 
 from numbers import Real
 from collections.abc import Iterable
-
+import pygame
 #import the utility function angle_wrap to normalise angle values since they may get increased while robot moves
 from .robot import Robot, angle_wrap 
 
@@ -872,14 +882,13 @@ class Simulator:
 
     def animate(self, data, scale=150, fps=None):
         """
-        Replay a recorded run in a pygame window.
+                Replay a recorded run in a pygame window.
 
         The simulation is not recomputed. The method steps through the
         positions stored in data, one recorded state per frame, and draws
         the map, the planned path, the trajectory so far and the robot.
         When the last state is reached the final frame stays on screen
-        until the window is closed. Pygame is imported here, so run() and
-        the metrics still work without it.
+        until the window is closed. It is called from main.py after run().
 
         Args:
             data (dict): Result of run().
@@ -893,7 +902,7 @@ class Simulator:
                 scale or fps is not a real number.
             ValueError: If scale or fps is not finite and greater than zero.
         """
-        import pygame
+        
 
         #raise TypeError if data is not a returned dictionary which occurs from run()
         if not isinstance(data, dict) or not all(
@@ -974,8 +983,35 @@ class Simulator:
                 if i < last:
                     i += 1
         finally:
+            
             pygame.quit()
 
+    #helper method to plot robot's path, path PID and time
+    def plot(self, data):
+        """
+        Plot the planned path against the robot trajectory.
 
+        The title shows the gains of both controllers: heading_pid and
+        speed_pid. It is called from main.py after run().
+        """
 
+        if not isinstance(data, dict) or "x" not in data or "y" not in data:
+            raise TypeError("data must be the dict returned by run().")
 
+        h = self.heading_pid
+        s = self.speed_pid
+
+        plt.plot([p[0] for p in self.waypoints],
+                 [p[1] for p in self.waypoints],
+                 "ro--", label="Planned path")
+        plt.plot(data["x"], data["y"], "b-", label="Robot path")
+        plt.axis("equal")
+        plt.gca().invert_yaxis()   #y grows downwards, same as the pygame map
+        plt.xlabel("X (m)")
+        plt.ylabel("Y (m)")
+        plt.legend()
+        plt.title(f"Heading PID (Kp={h.kp}, Ki={h.ki}, Kd={h.kd})\n"
+                  f"Speed PID (Kp={s.kp}, Ki={s.ki}, Kd={s.kd})")
+        plt.show()
+
+    
