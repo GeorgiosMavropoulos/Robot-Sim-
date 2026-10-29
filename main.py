@@ -16,11 +16,12 @@ def main():
 
     #(label, heading (kp, ki, kd), speed (kp, ki, kd))
     params = [
-        ("under", (0.1, 0.1, 0.2), (0.1, 0.2, 0.1)),
-        ("over",  (0.5, 0.2, 0.2), (0.5, 0.2, 0.2)),
-        ("tuned", (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)),
+        ("under",  (4,  0.01, 0.05), (0.5, 0.1, 0.1)),
+        ("over",  (7,  0.01, 0.1),  (0.5, 0.1, 0.1)),
+        ("tuned", (4,  0.1,  0.1),  (0.5, 0.1, 0.1)),
     ]
 
+    #declare an
     for label, (hkp, hki, hkd), (skp, ski, skd) in params:
         #new PID objects for every experiment
         heading_pid = PID(hkp, hki, hkd, output_limits=(-2, 2))
@@ -31,11 +32,32 @@ def main():
         #compute (no window is opened here)
         data = sim.run()
 
-        #metrics
-        mean_cte, max_cte = sim.cross_track_error(data)
-        print(f"[{label}] reached goal: {data['reached_goal'][-1]}, "
-              f"collisions: {data['collision_counter']}, "
-              f"CTE mean/max: {mean_cte:.3f} / {max_cte:.3f} m")
+        #empty dictionary to store metrics (cross-track-error, traversed distance and time to reach goal if did)
+    metrics_collection = {}
+    for label, (hkp, hki, hkd), (skp, ski, skd) in params:
+        #new PID objects for every experiment
+        heading_pid = PID(hkp, hki, hkd, output_limits=(-2, 2))
+        speed_pid = PID(skp, ski, skd, output_limits=(0, 0.5))
+
+        sim = Simulator(grid_map, waypoints, heading_pid, speed_pid)
+
+        #compute (no window is opened here)
+        data = sim.run()
+
+        #call metrics method from simulator calss to calculate cross-track-error, the distance the robot traversed and the time to reach goal if reached.
+        metrics = sim.metrics(data)
+
+        #append calculated metrics into metrics_collection
+        metrics_collection[label] = metrics
+        #print values
+        print(f"{label}:Total till till reach the goal: {metrics['time']}") #print time to reach goal if reached
+        print(f"{label}:Length of traversed path: {metrics['path_length']}") #print traversed distance
+        print(f"{label}:Mean cross track error: {metrics['cte_mean']}") #print mean cross track error
+        print(f"{label}:Maximum cross track error: {metrics['cte_max']}") #print maximum cross track error
+        print(f"{label}:Did robot reach the goal? {metrics['reached_goal']}") #print True if reached goal or false if didn't
+        print(f"{label}:Total collisions: {metrics['collisions']}") #print number of collisions if any
+        #seperate each experiment results with a seperation line
+        print("-" * 40)
  
 
         #visualisation: close each window to continue
