@@ -17,10 +17,11 @@ radians with metres.
 The constructor only validates and stores configuration. The robot and
 the recorded results are created at the start of each run, so repeated
 runs never leak state into each other.
-run() only computes and records the data and opens no window. The
-visualisation is a separate step: main.py calls animate() (pygame) and
-plot() (matplotlib) on the data that run() returns, so a run can
-be repeated without any window for experiments and tests.
+run() only computes and records the data and opens no window. Everything
+after it works on the dictionary that run() returns: the metrics
+(metrics() and the methods it calls) and the visualisation (animate() with
+pygame, plot() with matplotlib). main.py decides which of them to call, so
+a run can be repeated without any window for experiments and tests.
 
 Coordinate convention
 ---------------------
@@ -35,52 +36,55 @@ Simulator(grid_map, waypoints, heading_pid, speed_pid, dt=0.1,
     Validate and store the configuration of one simulation.
 Simulator.run() -> dict
     Run the simulation once and return the recorded data (keys are
-    listed in the docstring of run()).
+    listed in the docstring of run()). Opens no window.
+
+Metrics (all take the dict returned by run()):
+Simulator.metrics(data) -> dict
+    Collect all metrics of one run in a single dictionary: time,
+    path_length, cte_mean, cte_max, reached_goal, collisions.
+Simulator.time_till_robot_reach_the_goal(data) -> float or None
+    Time in seconds at which the goal was reached, None if it was not.
+Simulator.calculate_path_distance(data) -> float
+    Length in metres of the path travelled by the robot.
 Simulator.cross_track_error(data) -> (float, float)
     Mean and maximum distance of the recorded trajectory from the
     planned path segments, in metres.
+
+Visualisation (called from main.py after run()):
+Simulator.animate(data, scale=150, fps=None) -> None
+    Replay a recorded run in a pygame window.
+Simulator.plot(data) -> None
+    Show a matplotlib figure with the planned path and the robot
+    trajectory; the title shows the gains of both PIDs.
 Simulator.draw_map(screen, scale, ...) -> None
     Draw the occupancy grid on a pygame surface.
 Simulator.world_to_screen(x, y, scale) -> (int, int)
     Convert a point in metres to pixel coordinates.
+
+Geometry helpers (static methods):
 Simulator.distance_between_two_waypoints(x, y) -> float
-    Euclidean distance between two (x, y) points (static method).
+    Euclidean distance between two (x, y) points.
 Simulator.compute_angle_between_start_and_goal(start, goal) -> float
-    Direction from start to goal in radians, wrapped to [-pi, pi)
-    (static method).
+    Direction from start to goal in radians, wrapped to [-pi, pi).
 Simulator.heading_error(theta, desired_angle) -> float
     Wrapped difference desired_angle - theta. Positive means the target
-    is to the left (static method).
-
-Simulator.metrics(data) -> dict
-       Time to goal, path length and cross-track error (mean and max) of a
-       recorded run.
-
-Simulator.
-
-
-Simulator.animate(data, scale=150, fps=None) -> None
-    Replay a recorded run in a pygame window (called from main.py).
-Simulator.plot(data) -> None
-    Show a matplotlib figure with the planned path and the robot
-    trajectory (called from main.py).
-
-
+    is to the left.
+Simulator.distance_point_to_segment(point, a, b) -> float
+    Shortest distance from a point to the segment a-b.
 
 Internal helpers
 ----------------
 Simulator._create_robot() -> Robot
     Build a new Robot at the first waypoint with heading start_theta.
 Simulator._normalize_waypoints(waypoints) -> tuple
-    Return the waypoints as a tuple of tuples.
+    Return the waypoints as a tuple of tuples (static method).
 Simulator._validate_init_args(grid_map, waypoints, heading_pid, speed_pid,
           dt, waypoint_threshold, goal_threshold, t_max, start_theta)
+    Validate the arguments of __init__ (static method).
 Simulator._check_real(name, value, positive=False) -> None
     Check that a value is a finite real number, optionally > 0 (static).
 Simulator._check_point(name, point) -> None
     Check that a point is a tuple of two finite real numbers (static).
-Simulator.distance_point_to_segment(point, a, b) -> float
-    Shortest distance from a point to the segment a-b (static method).
 
 Control loop (see Simulator.run)
 --------------------------------
