@@ -52,11 +52,20 @@ Simulator.heading_error(theta, desired_angle) -> float
     Wrapped difference desired_angle - theta. Positive means the target
     is to the left (static method).
 
+Simulator.metrics(data) -> dict
+       Time to goal, path length and cross-track error (mean and max) of a
+       recorded run.
+
+Simulator.
+
+
 Simulator.animate(data, scale=150, fps=None) -> None
     Replay a recorded run in a pygame window (called from main.py).
 Simulator.plot(data) -> None
     Show a matplotlib figure with the planned path and the robot
     trajectory (called from main.py).
+
+
 
 Internal helpers
 ----------------
@@ -486,10 +495,80 @@ class Simulator:
         
 
 
+    def calculate_path_distance(self,data)-> float:
+        """
+        Length of the path travelled by the robot, in metres.
 
+        Args:
+            data (dict): Result of run(); uses data["x"] and data["y"].
+
+        Returns:
+            float: Sum of the straight-line distances between consecutive
+            recorded positions, in metres.
+
+        Raises:
+            TypeError: If data is not the dict returned by run().
+            ValueError: If data["x"] and data["y"] are empty or differ in length.
+        """
+        #raise an error if data is not a dictionary
+        if not isinstance(data, dict) or "x" not in data or "y" not in data:
+                    raise TypeError("data must be the dict returned by run().")
+
+        #raise a ValueError if lists are empty or not equally long
+        if len(data["x"]) == 0 or len(data['y']) ==0 or len(data['x']) != len(data['y']):
+                    raise ValueError("data['x'] and data['y'] must be non-empty and equally long.")
+
+        #declare an empty value to update it later
+        length = 0.0
+
+        for i in range(len(data["x"]) - 1):
+            current = data['x'][i],data['y'][i]
+            next_position = data['x'][i + 1] , data['y'][i+ 1] 
+            length += math.dist(current,next_position)
+
+        return length
+
+
+
+    def metrics(self, data) -> dict:
+        """
+        Collect the performance metrics of one recorded run.
+
+        Calls the existing metric methods and reads two values from the
+        recorded data. 
+
+        Args:
+            data (dict): Result of run().
+
+        Returns:
+            dict: "time" (float or None), "path_length" (float, m),
+            "cte_mean" (float, m), "cte_max" (float, m),
+            "reached_goal" (bool), "collisions" (int).
+
+        Raises:
+            TypeError: If data is not a dict (the other methods check the keys).
+        """
+        #TypeError if data is not a dict
         
+        required = ("x", "y", "reached_goal", "collision_counter")
+        if not isinstance(data, dict) or not all(key in data for key in required):
+            raise TypeError("data must be the dict returned by run().")
 
 
+        time_to_goal = self.time_till_robot_reach_the_goal(data) #call the time method
+        path_length = self.calculate_path_distance(data)         #call the path method
+        cte_mean, cte_max = self.cross_track_error(data)    #call cross_track_error
+        reached = data['reached_goal'][-1]  # last item of data["reached_goal"]
+        collisions = data["collision_counter"] #collisions computed number from data list
+
+        return {                      
+            "time": time_to_goal,
+            "path_length": path_length,
+            "cte_mean": cte_mean,
+            "cte_max": cte_max,
+            "reached_goal": reached,
+            "collisions": collisions,
+        }
 
 
 
