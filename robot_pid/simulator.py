@@ -491,7 +491,7 @@ class Simulator:
 
         #return None if the last value of reached_goal list's is False
         if data['reached_goal'][-1] is not True:
-            return None
+            return 'Failed to reach the goal point'
         else: 
             #if reached_goal == True return the last time value from the list
             return data['t'][-1]
