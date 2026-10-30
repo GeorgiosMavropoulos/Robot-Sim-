@@ -14,13 +14,24 @@
 import math
 class PID:
     def __init__(self,kp,ki,kd,output_limits):
-        """
-        P is responsible for the current error, I handles the accumulated errors (the steady-state errors) and D counts how fast the error changes.
-        Output limits stop PID command in order not to exceed what the robot can do. PID computes P + I +D  and if the results is out of limits, output limits
-        change the result in the closet limit. accumulated_error stores  the full error's value while previous error the previous errors.
-        
-        """
+        """Initialize the PID controller with gains and output constraints.
 
+        Args:
+            kp (float): Proportional gain.
+            ki (float): Integral gain.
+            kd (float): Derivative gain.
+            output_limits (tuple or list, optional): A container with exactly two 
+                elements (low, high) defining the controller bounds. Individual 
+                elements can be None for single-sided constraints. Defaults to None.
+
+        Raises:
+            TypeError: If gains or limits are not finite numeric types (excluding bool) 
+                or if output_limits is not a tuple/list.
+            ValueError: If gains are infinite, output_limits does not contain two 
+                values, or low is greater than or equal to high.
+        """
+        #validate initialization inputs
+        self._validate_initialization(kp, ki, kd, output_limits)
         self.kp= kp
        
         self.ki = ki
@@ -99,6 +110,42 @@ class PID:
 
 
    #################### Helper Methods ########################################
+    
+
+    def _validate_initialization(self, kp, ki, kd, output_limits):
+        """Perform full validation on constructor arguments.
+
+        Args:
+            kp, ki, kd (float): Controller tuning parameters.
+            output_limits (any): Bounds passed during constructor instantiation.
+
+        Raises:
+            TypeError: For structural layout or type violations.
+            ValueError: For numerical out-of-bound errors.
+        """
+        #gain parameters check
+        for gain_name, gain_val in [("kp", kp), ("ki", ki), ("kd", kd)]:
+            if isinstance(gain_val, bool) or not isinstance(gain_val, (int, float)):
+                raise TypeError(f"Gain {gain_name} must be a float or int, got {type(gain_val).__name__}")
+            if not math.isfinite(gain_val):
+                raise ValueError(f"Gain {gain_name} must be a finite number.")
+
+        #output limits validation checks
+        if output_limits is not None:
+            if isinstance(output_limits, bool) or not isinstance(output_limits, (tuple, list)):
+                raise TypeError("output_limits must be a tuple or list")
+            if len(output_limits) != 2:
+                raise ValueError("output_limits must contain exactly two values (low, high)")
+            
+            low, high = output_limits
+            if (isinstance(low, bool) or (low is not None and not isinstance(low, (int, float))) or
+                isinstance(high, bool) or (high is not None and not isinstance(high, (int, float)))):
+                raise TypeError("Limits must be numeric values or None")
+                
+            if low is not None and high is not None and low >= high:
+                raise ValueError(f"Lower limit ({low}) must be strictly less than upper limit ({high})")
+
+    
         
     #helper method to validate update's inputs
     @staticmethod
