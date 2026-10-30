@@ -86,7 +86,6 @@ class AStarPlanner:
             int: |a_row - b_row| + |a_col - b_col|.
         """
 
-    ##Error handling#####
 
     #validate that a and b are tuples or lists of length 2
         for point, name in [(a, "a"), (b, "b")]:
@@ -102,11 +101,22 @@ class AStarPlanner:
                     f"{name} must contain exactly two coordinates, got length {len(point)}"
                 )
 
+
             for coordinate in point:
                 #Raise TypeError if coordinates are not int or float
                 if isinstance(coordinate, bool) or not isinstance(coordinate, (int, float)):
                     raise TypeError(
                         f"Coordinates in {name} must be numeric (int or float), got {type(coordinate).__name__}"
+                    )
+                #validate that both coordinates are numeric and finite
+            for coordinate in point:
+                    if (
+                        isinstance(coordinate, bool)
+                        or not isinstance(coordinate, (int, float))
+                        or not math.isfinite(coordinate)
+                    ):
+                        raise TypeError(
+                            f"Coordinates in {name} must be finite numbers"
                     )
             
             #raise a ValueError if coordinates are not finite numbers
@@ -183,19 +193,20 @@ class AStarPlanner:
             ValueError: If start or goal lies outside the map or on an
                 obstacle (invalid input, as opposed to "no path").
             TypeError: If start or goal is not a pair of integers
-                (raised by Map.is_free_cell).
+                (raised by Map.is_free_cell.
         """
 
        #validate that the start and goal cells are inside the map
        # and are not occupied by obstacles.
        if not self.map_instance.is_free_cell(start):
-        raise TypeError("Start cell must be inside the map and free.")
+        raise ValueError("Start cell must be inside the map and free.")
 
        if not self.map_instance.is_free_cell(goal):
-        raise TypeError("Goal cell must be inside the map and free.")
+        raise ValueError("Goal cell must be inside the map and free.")
 
-       #convert start into a tuple list because g_score requires a hashable key
+       #convert start and goal into a tuple lists 
        start = tuple(start)
+       goal = tuple(goal)
 
        #priority queue containing (estimated total cost, cell).
        open_list = []
