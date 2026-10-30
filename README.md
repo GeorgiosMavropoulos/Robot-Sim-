@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Robot Path Tracking with PID Control (CET3004 – Assignment 1)
 
 A 2D robot simulator in Python in which a unicycle robot follows a path planned by A* using two PID controllers (heading and speed). Visualisation uses pygame (live animation) and matplotlib (final plots).
@@ -131,3 +132,7 @@ Tests: `inbound_cell` (6 cells) and `neighbors` on a 5x5 map were checked. Still
 - Wikipedia, "PID controller" (discrete PID pseudocode)
 - `simple-pid` library (m-lundberg/simple-pid), read as a design reference only
 - GeekForGeeks A*search algorithm
+=======
+# Robot-Sim-
+2D Robot Simulator with path tracking (A*search) and custom PID algorithm for my Bsc's Robotics Module University of Sunderland
+>>>>>>> dabd551 (Initial commit)
