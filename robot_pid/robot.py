@@ -12,7 +12,7 @@ It contains strict error handling mechanisms to avoid non-finite values (NaN/Inf
 """
 import math
 #utility function
-def angle_wrap(a):
+def angle_wrap(a)->float:
     """Wraps an angular value to the interval [-pi, pi].
 
     This utility ensures that orientation angles stay within a standardized 
@@ -58,7 +58,7 @@ class Robot:
         self.theta = theta
         #raise an error if x,y and theta are not valid values
         if  not (math.isfinite( self.x) and math.isfinite( self.y) and math.isfinite(self.theta)):
-                    raise TypeError('Initial pose coordinates (x, y, theta) must be finite numbers.')
+                    raise ValueError('Initial pose coordinates (x, y, theta) must be finite numbers.')
 
         #wrap the angle
         self.theta  = angle_wrap(theta)
