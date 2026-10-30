@@ -22,23 +22,6 @@ def main():
         ("tuned", (4,  0.1,  0.1),  (0.5, 0.1, 0.1)),
     ]
 
-    #declare an
-    for label, (hkp, hki, hkd), (skp, ski, skd) in params:
-        #new PID objects for every experiment
-        heading_pid = PID(hkp, hki, hkd, output_limits=(-2, 2))
-        speed_pid = PID(skp, ski, skd, output_limits=(0, 0.5))
-
-        sim = Simulator(grid_map, waypoints, heading_pid, speed_pid)
-
-        #compute (no window is opened here)
-        data = sim.run()
-
-        ("under", (1, 0.1, 0.1), (0.2, 0.1, 0.1)),
-        ("over",  (10,  1.0, 0.0), (0.6, 0.0, 0.0)),
-        ("tuned", (6,   0.0, 0.2), (0.6, 0.0, 0.0)),
-    
-
-
 
         #empty dictionary to store metrics (cross-track-error, traversed distance and time to reach goal if did)
     metrics_collection = {}
