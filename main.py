@@ -7,7 +7,7 @@ and benchmarking the performance impacts of controller gains.
 
 The program records cross-track error (CTE), heading error, execution time, and collision
 metrics, persisting them automatically into a clean 'robot_metrics.csv' data file before
-rendering live animation frames and performance plots.
+rendering live animation frames and performance plots. All metrics are being saved into a csv file.
 
 Usage:
     Run from the project root directory:
@@ -28,9 +28,11 @@ def main():
 
     #(label, heading (kp, ki, kd), speed (kp, ki, kd))
     params = [
-        ("under",  (0.5,  0.01, 0.05), (0.5, 0.1, 0.1)),
-        ("over",  (20,  0.01, 0.1),  (0.5, 0.1, 0.1)),
-        ("tuned", (5,  0.1,  0.1),  (0.5, 0.1, 0.1)),
+         ("under", (12.0, 0.01, 0.02), (0.4, 0.1, 0.1)),
+
+        ("over", (4.0, 0.01, 1.5), (0.03, 0.01, 2.1)),
+
+        ("tuned", (7.0, 0.01, 0.4), (0.03, 0.01, 2.1)),
     ]
 
 
@@ -40,8 +42,7 @@ def main():
         #new PID objects for every experiment
         heading_pid = PID(hkp, hki, hkd, output_limits=(-2, 2))
         speed_pid = PID(skp, ski, skd, output_limits=(0, 0.5))
-        heading_pid = PID(hkp, hki, hkd, output_limits=(-2.5, 2.5))
-        speed_pid = PID(skp, ski, skd, output_limits=(0, 0.3))
+      
 
         sim = Simulator(grid_map, waypoints, heading_pid, speed_pid)
 
@@ -81,15 +82,11 @@ def main():
         #declare a variable to store csv's name
         file_name = "robot_metrics.csv"
 
-        #check if file exists in order not to re-write headers
-        file_exists = os.path.isfile(file_name)
 
         #write all values
         with open(file_name, mode="w", newline="", encoding="utf-8") as file:
             writer = csv.DictWriter(file, fieldnames=fieldnames)
 
-            if not file_exists:
-                writer.writeheader()
 
             writer.writeheader()  #write the header columns
             writer.writerows(all_results)  # write all lines
