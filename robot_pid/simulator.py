@@ -25,7 +25,7 @@ a run can be repeated without any window for experiments and tests.
 
 Coordinate convention
 ---------------------
-Positions are (x, y) in metres and angles are in radians, counter-clockwise
+Positions are (x, y) in metres and angles are in radians, clockwise 
 from the +x axis, wrapped to [-pi, pi) with angle_wrap.
 
 Public API
@@ -43,7 +43,7 @@ Simulator.metrics(data) -> dict
     Collect all metrics of one run in a single dictionary: time,
     path_length, cte_mean, cte_max, heading_error_mean,
     heading_error_max, reached_goal, collisions.
-    path_length, cte_mean, cte_max, reached_goal, collisions.
+   
 
 Simulator.time_till_robot_reach_the_goal(data) -> float or None
     Time in seconds at which the goal was reached, None if it was not.
@@ -96,6 +96,10 @@ Simulator._compute_heading_error_desired_angle_and_distance_between_two_waypoint
           robot, target) -> (float, float)
     Heading error towards the target and distance from the robot to the
     final waypoint. The desired angle is computed inside the method.
+
+
+Simulator.heading_error_stats(self, data) -> tuple[float, float]:
+       Returns mean and maximum absolute heading error of one recorded run.
 Control loop (see Simulator.run)
 --------------------------------
 Heading PID: wrapped heading error towards the next waypoint -> omega.
@@ -520,7 +524,7 @@ class Simulator:
                  Data: dictionary returned from run()
 
            Returns:
-                   time in seconds or None if robot never reached the goal
+                   time in seconds or 'robot didn't reach the goal' if robot never reached the goal
                    
         
         """
@@ -651,7 +655,7 @@ class Simulator:
 
 
 
-    def cross_track_error(self, data) -> tuple[float]:
+    def cross_track_error(self, data) -> tuple[float, float]:
         """Mean and maximum distance (m) of the recorded trajectory from the planned path.
 
         For every recorded position, the error is the distance to the nearest
