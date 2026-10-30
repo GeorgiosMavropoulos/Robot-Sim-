@@ -90,21 +90,30 @@ class AStarPlanner:
 
     #validate that a and b are tuples or lists of length 2
         for point, name in [(a, "a"), (b, "b")]:
-         if not isinstance(point, (tuple, list)) or len(point) != 2:
-            raise ValueError(
-                f"{name} must contain exactly two coordinates (row, col)"
-            )
+            
+            if not isinstance(point, (tuple, list)):
+                raise TypeError(
+                    f"{name} must be a tuple or a list, got {type(point).__name__}"
+                )
+                
+            
+            if len(point) != 2:
+                raise ValueError(
+                    f"{name} must contain exactly two coordinates, got length {len(point)}"
+                )
 
-            #validate that both coordinates are numeric and finite
-         for coordinate in point:
-                if (
-                    isinstance(coordinate, bool)
-                    or not isinstance(coordinate, (int, float))
-                    or not math.isfinite(coordinate)
-                ):
-                    raise ValueError(
-                        f"Coordinates in {name} must be finite numbers"
+            for coordinate in point:
+                #Raise TypeError if coordinates are not int or float
+                if isinstance(coordinate, bool) or not isinstance(coordinate, (int, float)):
+                    raise TypeError(
+                        f"Coordinates in {name} must be numeric (int or float), got {type(coordinate).__name__}"
                     )
+            
+            #raise a ValueError if coordinates are not finite numbers
+            if not math.isfinite(coordinate):
+                raise ValueError(
+                    f"Coordinates in {name} must be finite numbers, got {coordinate}"
+                )
 
         ##apply the manhattan algorithm if all goes well  
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
