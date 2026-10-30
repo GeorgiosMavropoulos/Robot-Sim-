@@ -41,7 +41,10 @@ Simulator.run() -> dict
 Metrics (all take the dict returned by run()):
 Simulator.metrics(data) -> dict
     Collect all metrics of one run in a single dictionary: time,
+    path_length, cte_mean, cte_max, heading_error_mean,
+    heading_error_max, reached_goal, collisions.
     path_length, cte_mean, cte_max, reached_goal, collisions.
+
 Simulator.time_till_robot_reach_the_goal(data) -> float or None
     Time in seconds at which the goal was reached, None if it was not.
 Simulator.calculate_path_distance(data) -> float
@@ -78,14 +81,21 @@ Simulator._create_robot() -> Robot
     Build a new Robot at the first waypoint with heading start_theta.
 Simulator._normalize_waypoints(waypoints) -> tuple
     Return the waypoints as a tuple of tuples (static method).
+
 Simulator._validate_init_args(grid_map, waypoints, heading_pid, speed_pid,
           dt, waypoint_threshold, goal_threshold, t_max, start_theta)
     Validate the arguments of __init__ (static method).
+
 Simulator._check_real(name, value, positive=False) -> None
     Check that a value is a finite real number, optionally > 0 (static).
+
 Simulator._check_point(name, point) -> None
     Check that a point is a tuple of two finite real numbers (static).
 
+Simulator._compute_heading_error_desired_angle_and_distance_between_two_waypoints(
+          robot, target) -> (float, float)
+    Heading error towards the target and distance from the robot to the
+    final waypoint. The desired angle is computed inside the method.
 Control loop (see Simulator.run)
 --------------------------------
 Heading PID: wrapped heading error towards the next waypoint -> omega.
@@ -284,6 +294,32 @@ class Simulator:
 
         return robot
 
+
+    def _compute_heading_error_desired_angle_and_distance_between_two_waypoints(self, robot, target):
+        """
+        Compute the heading error towards the target and the distance to the goal.
+
+        The desired angle is computed here from the robot's position to the
+        target, so the caller does not need to compute it separately.
+
+        Args:
+            robot (Robot): Robot with the attributes x, y and theta.
+            target (tuple): (x, y) in metres, the current target waypoint.
+
+        Returns:
+            tuple[float, float]: (error_theta, distance_to_goal), where
+                error_theta is the wrapped difference in radians between the
+                direction to the target and the robot's heading (positive means
+                the target is to the left), and distance_to_goal is the distance
+                in metres from the robot to the final waypoint.
+        """
+        position = (robot.x, robot.y)
+        desired_angle = self.compute_angle_between_start_and_goal(position, target)
+        error_theta = self.heading_error(robot.theta, desired_angle)
+        distance_to_goal = self.distance_between_two_waypoints(position, self.waypoints[-1])
+        return error_theta, distance_to_goal
+
+    
     def run(self) ->dict:
         """
         Run one waypoint-following simulation and return the recorded data.
@@ -339,6 +375,8 @@ class Simulator:
               each step.
             - "collision_counter" (int): 1 if the run ended in a collision,
               otherwise 0.
+            - "heading_error" (list[float]): Heading error towards the target in radians, wrapped to [-pi, pi).
+  
 
         Raises:
             ValueError: If a controller or the robot produces a non-finite
@@ -349,12 +387,16 @@ class Simulator:
         self.heading_pid.reset()
         self.speed_pid.reset()
 
+         #calculate the heading error towards the target and the distance to the final waypoint
+        start_error, distance_to_goal = self._compute_heading_error_desired_angle_and_distance_between_two_waypoints(robot, self.waypoints[1])
+      
         # recorded data: every field is a list, with one value per time step.
         robot_data = {
             "t": [0.0],
             "x": [robot.x],
             "y": [robot.y],
             "theta": [robot.theta],
+            "heading_error":[start_error],
             "v_com": [0.0],
             "omega_com": [0.0],
             "reached_goal": [False],
@@ -388,15 +430,12 @@ class Simulator:
                 index += 1
                 continue
 
-            # calculate the desired heading and heading error.
-            desired_angle = self.compute_angle_between_start_and_goal(
-                (robot.x, robot.y), goal
-            )
-            error_theta = self.heading_error(robot.theta, desired_angle)
+            
+            #calculate the heading error towards the target and the distance to the final waypoint and 
+            # a second distance from the robot's position to the last waypoint of the path
+            error_theta, distance_to_goal = self._compute_heading_error_desired_angle_and_distance_between_two_waypoints(robot, goal)
 
-            # compute a second distance from the robot's position to the last waypoint of the path
-            distance_to_goal = self.distance_between_two_waypoints((robot.x, robot.y), self.waypoints[-1])
-
+          
             # calculate the controller commands.
             omega_com = self.heading_pid.update(error_theta, self.dt)  # update the angular error
             v_com = self.speed_pid.update(distance_to_goal, self.dt)
@@ -424,6 +463,7 @@ class Simulator:
             robot_data["x"].append(robot.x)
             robot_data["y"].append(robot.y)
             robot_data["theta"].append(robot.theta)
+            robot_data['heading_error'].append(error_theta)
             robot_data["v_com"].append(v_com)
             robot_data["omega_com"].append(omega_com)
             robot_data["reached_goal"].append(reached_goal)
@@ -533,6 +573,33 @@ class Simulator:
         return length
 
 
+    def heading_error_stats(self, data) -> tuple[float, float]:
+        """
+        Mean and maximum absolute heading error of one recorded run.
+
+        The first entry of data["heading_error"] is the initial error before
+        the robot moves, so it is skipped: the metric measures the controller,
+        not the choice of start_theta.
+
+        Args:
+            data (dict): Result of run(); uses data["heading_error"].
+
+        Returns:
+            tuple[float, float]: (mean_abs_error, max_abs_error) in radians.
+            (0.0, 0.0) if the robot made no step.
+
+        Raises:
+            TypeError: If data is not the dict returned by run().
+        """
+        if not isinstance(data, dict) or "heading_error" not in data:
+            raise TypeError("data must be the dict returned by run().")
+
+        abs_errors = [abs(e) for e in data["heading_error"][1:]]
+        if not abs_errors:
+            return 0.0, 0.0
+        return sum(abs_errors) / len(abs_errors), max(abs_errors)
+
+
 
     def metrics(self, data) -> dict:
         """
@@ -544,10 +611,13 @@ class Simulator:
         Args:
             data (dict): Result of run().
 
-        Returns:
-            dict: "time" (float or None), "path_length" (float, m),
+          Returns:
+            dict: "time" (float or str), "path_length" (float, m),
             "cte_mean" (float, m), "cte_max" (float, m),
+            "heading_error_mean" (float, rad),
+            "heading_error_max" (float, rad),
             "reached_goal" (bool), "collisions" (int).
+ 
 
         Raises:
             TypeError: If data is not a dict (the other methods check the keys).
@@ -563,6 +633,7 @@ class Simulator:
         path_length = self.calculate_path_distance(data)         #call the path method
         cte_mean, cte_max = self.cross_track_error(data)    #call cross_track_error
         reached = data['reached_goal'][-1]  # last item of data["reached_goal"]
+        heading_mean, heading_max = self.heading_error_stats(data) #take the heading error mean and max value
         collisions = data["collision_counter"] #collisions computed number from data list
 
         return {                      
@@ -570,6 +641,8 @@ class Simulator:
             "path_length": path_length,
             "cte_mean": cte_mean,
             "cte_max": cte_max,
+            "heading_error_mean": heading_mean,
+            "heading_error_max": heading_max,
             "reached_goal": reached,
             "collisions": collisions,
         }
@@ -837,6 +910,7 @@ class Simulator:
         plt.plot([p[0] for p in self.waypoints],
                  [p[1] for p in self.waypoints],
                  "ro--", label="Planned path")
+       
         plt.plot(data["x"], data["y"], "b-", label="Robot path")
         plt.axis("equal")
         plt.gca().invert_yaxis()  # y grows downwards, same as the pygame map
@@ -845,4 +919,6 @@ class Simulator:
         plt.legend()
         plt.title(f"Heading PID (Kp={h.kp}, Ki={h.ki}, Kd={h.kd})\n"
                   f"Speed PID (Kp={s.kp}, Ki={s.ki}, Kd={s.kd})")
+        plt.tight_layout() #tight layout so text is not overlapping
         plt.show()
+

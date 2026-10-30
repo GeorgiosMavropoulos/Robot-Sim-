@@ -6,7 +6,8 @@ from robot_pid.map import Map
 from robot_pid.pid import PID
 from robot_pid.planner import AStarPlanner
 from robot_pid.simulator import Simulator
-
+import csv
+import os
 
 def main():
     #build the map and plan the path once, so every gain set  is compared on exactly the same path
@@ -32,12 +33,21 @@ def main():
         #compute (no window is opened here)
         data = sim.run()
 
+        ("under", (1, 0.1, 0.1), (0.2, 0.1, 0.1)),
+        ("over",  (10,  1.0, 0.0), (0.6, 0.0, 0.0)),
+        ("tuned", (6,   0.0, 0.2), (0.6, 0.0, 0.0)),
+    
+
+
+
         #empty dictionary to store metrics (cross-track-error, traversed distance and time to reach goal if did)
     metrics_collection = {}
     for label, (hkp, hki, hkd), (skp, ski, skd) in params:
         #new PID objects for every experiment
         heading_pid = PID(hkp, hki, hkd, output_limits=(-2, 2))
         speed_pid = PID(skp, ski, skd, output_limits=(0, 0.5))
+        heading_pid = PID(hkp, hki, hkd, output_limits=(-2.5, 2.5))
+        speed_pid = PID(skp, ski, skd, output_limits=(0, 0.3))
 
         sim = Simulator(grid_map, waypoints, heading_pid, speed_pid)
 
@@ -49,11 +59,58 @@ def main():
 
         #append calculated metrics into metrics_collection
         metrics_collection[label] = metrics
-        #print values
+
+        ##create a list to append all metric results into a list in order to write them into a csv
+        all_results= []
+
+
+        #convert metrics into a list of dictionaries and adding the label on each row to know which experiment the row refers to.
+        for exp_label, exp_metrics in metrics_collection.items():
+            row = {"Experiment": exp_label}  #store the label name as an ID for each experiment
+            row.update(exp_metrics)          # #copy all the other metrics
+            all_results.append(row)
+        
+        #write values into a csv
+        #define column headers for the csv file
+        fieldnames = [
+               "Experiment", #under/over/tuned
+                "time",
+                "path_length",
+                "cte_mean",
+                "cte_max",
+                "heading_error_mean",
+                "heading_error_max",
+                "reached_goal",
+                "collisions",
+            ]
+
+        #declare a variable to store csv's name
+        file_name = "robot_metrics.csv"
+
+        #check if file exists in order not to re-write headers
+        file_exists = os.path.isfile(file_name)
+
+        #write all values
+        with open(file_name, mode="w", newline="", encoding="utf-8") as file:
+            writer = csv.DictWriter(file, fieldnames=fieldnames)
+
+            if not file_exists:
+                writer.writeheader()
+
+            writer.writeheader()  #write the header columns
+            writer.writerows(all_results)  # write all lines
+
+        #display results on terminal
         print(f"{label}:Total till till reach the goal: {metrics['time']}") #print time to reach goal if reached
         print(f"{label}:Length of traversed path: {metrics['path_length']}") #print traversed distance
         print(f"{label}:Mean cross track error: {metrics['cte_mean']}") #print mean cross track error
         print(f"{label}:Maximum cross track error: {metrics['cte_max']}") #print maximum cross track error
+        print(f"{label}:Total time till reach the goal: {metrics['time']}") #print time to reach goal if reached
+        print(f"{label}:Length of traversed path: {metrics['path_length']}") #print traversed distance
+        print(f"{label}:Mean cross track error: {metrics['cte_mean']}") #print mean cross track error
+        print(f"{label}:Maximum cross track error: {metrics['cte_max']}") #print maximum cross track error
+        print(f"{label}:Heading error mean value:{metrics['heading_error_mean']}") #print heading error's mean value
+        print(f"{label}:Heading error max value:{metrics['heading_error_max']}") #print heading error's max value
         print(f"{label}:Did robot reach the goal? {metrics['reached_goal']}") #print True if reached goal or false if didn't
         print(f"{label}:Total collisions: {metrics['collisions']}") #print number of collisions if any
         #seperate each experiment results with a seperation line
@@ -62,7 +119,10 @@ def main():
 
         #visualisation: close each window to continue
         sim.animate(data)        # pygame
-        sim.plot(data)   # matplotlib
+        
+        sim.plot(data)   # plot results
+
+   
 
 
 
