@@ -119,15 +119,15 @@ Tests: `inbound_cell` (6 cells) and `neighbors` on a 5x5 map were checked. Still
 - [x] `map.py` written and documented (last tests to record)
 - [x] `build_default_map()` (fixed obstacle layout for the experiments)
 - [x] `planner.py` (A*: heuristic, open set, `came_from`, path reconstruction, cells -> metres)
-- [ ] `simulator.py` (loop, headless mode, metrics, plots, pygame view, `draw` methods)
-- [ ] `main.py` (three gain sets, results table)
-- [ ] Tuning of the three gain sets
-- [ ] Report (max 1,500 words, including a short ethics / safety reflection)
+- [x] `simulator.py` (loop, headless mode, metrics, plots, pygame view, `draw` methods)
+- [x] `main.py` (three gain sets, results table)
+- [x] Tuning of the three gain sets
+- [x] Report (max 1,500 words, including a short ethics / safety reflection)
 
 
 
 ## References
 
 - Wikipedia, "PID controller" (discrete PID pseudocode)
-- `simple-pid` library (m-lundberg/simple-pid), read as a design reference only
+
 - GeekForGeeks A*search algorithm
